@@ -8,7 +8,7 @@ time.sleep(5)
 import telebot
 
 # ВСТАВЬ сюда свой токен от BotFather
-TOKEN = "сюда_вставь_твой_токен"
+TOKEN = 8392536324:AAHr6dlM0hk9Qv5WP-rTOUsLMdvPBw6PtQw
 
 bot = telebot.TeleBot(TOKEN)
 
