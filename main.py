@@ -49,17 +49,22 @@ def reply_message(message):
             bot.reply_to(message, f"💰 Курс:\n₿ BTC: {btc}$\n🦄 ETH: {eth}$")
         except Exception as e:
             bot.reply_to(message, f"⚠️ Не удалось получить курс.\nОшибка: {e}")
-    else:
-        try:
-            response = client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=[{"role": "user", "content": message.text}]
-            )
-            answer = response.choices[0].message.content
-            bot.reply_to(message, answer)
+    
         except Exception as e:
             bot.reply_to(message, f"⚠️ Я пока не могу ответить. Проверь, что ключ OpenAI указан правильно.\nОшибка: {e}")
-
+def generate_ai_reply(message):
+    try:
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "Ты дружелюбный Telegram-ассистент."},
+                {"role": "user", "content": message.text}
+            ]
+        )
+        answer = response.choices[0].message.content
+        bot.reply_to(message, answer)
+    except Exception as e:
+        bot.reply_to(message, f"⚠️ Ошибка при ответе ИИ: {e}")
 # Запуск телеграм-бота в отдельном потоке
 def run_bot():
     bot.infinity_polling()
