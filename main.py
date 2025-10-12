@@ -1,38 +1,55 @@
 import telebot
 import requests
-import os
 import openai
 import os
+from flask import Flask
+
+# Настройки
 openai.api_key = os.getenv("OPENAI_API_KEY")
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# Обработка команды /start
+# Flask сервер для Koyeb
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "Bot is running!"
+
+# Команда /start
 @bot.message_handler(commands=['start'])
 def start_message(message):
-    bot.reply_to(message, "Привет! 🤖 Я твой ИИ-бот. Напиши мне любой вопрос — попробую ответить!")
+    bot.reply_to(message, "Привет! 🤖 Я твой ИИ-бот. Напиши что-нибудь!")
 
-# Основная логика ответов
+# Ответы на сообщения
 @bot.message_handler(func=lambda message: True)
 def reply_to_user(message):
-    user_text = message.text.strip().lower()
+    text = message.text.strip().lower()
 
-    # Примеры "умных" ответов без OpenAI
-    if "биткоин" in user_text or "bitcoin" in user_text:
-        bot.reply_to(message, "Биткоин — это первая и самая известная криптовалюта. Хочешь, расскажу про текущий курс?")
-    elif "курс" in user_text:
+    if "биткоин" in text or "bitcoin" in text:
+        bot.reply_to(message, "₿ Биткоин — это известная криптовалюта!")
+    elif "курс" in text:
         try:
             r = requests.get("https://api.coindesk.com/v1/bpi/currentprice.json").json()
             price = r["bpi"]["USD"]["rate"]
             bot.reply_to(message, f"💰 Текущий курс биткоина: {price} USD")
         except:
-            bot.reply_to(message, "Не удалось получить курс 😕 Попробуй позже.")
-    elif "привет" in user_text:
-        bot.reply_to(message, "Привет! Как настроение?")
-    elif "как дела" in user_text:
-        bot.reply_to(message, "У меня всё отлично, я бот 😄 А у тебя?")
+            bot.reply_to(message, "Не удалось получить курс 😕")
     else:
-        bot.reply_to(message, "Пока я только учусь. Но можешь спросить меня про биткоин или курс валют 😉")
+        bot.reply_to(message, "Я учусь отвечать! Спроси про биткоин 😊")
 
 # Запуск
-bot.infinity_polling()
+if __name__ == "__main__":
+    import threading
+    import time
+
+    # Запускаем телеграм-бота в отдельном потоке
+    def run_bot():
+        bot.infinity_polling()
+
+    thread = threading.Thread(target=run_bot)
+    thread.start()
+
+    # Flask-сервер (чтобы Koyeb видел, что приложение работает)
+    port = int(os.getenv("PORT", 8000))
+    app.run(host="0.0.0.0", port=port)
