@@ -4,6 +4,7 @@ from openai import OpenAI
 import os
 from flask import Flask
 import threading
+import base64  # 🔊 добавлено для голосового ответа
 
 # Настройки
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
@@ -39,19 +40,41 @@ def reply_message(message):
     else:
         generate_ai_reply(message)
 
-    if "биткоин" in text or "bitcoin" in text:
-        bot.reply_to(message, "🪙 Биткоин — популярная криптовалюта с ограниченной эмиссией!")
-        try:
-            r = requests.get("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=usd")
-            data = r.json()
-            btc = data["bitcoin"]["usd"]
-            eth = data["ethereum"]["usd"]
-            bot.reply_to(message, f"💰 Курс:\n₿ BTC: {btc}$\n🦄 ETH: {eth}$")
-        except Exception as e:
-            bot.reply_to(message, f"⚠️ Не удалось получить курс.\nОшибка: {e}")
-    
-        except Exception as e:
-            bot.reply_to(message, f"⚠️ Я пока не могу ответить. Проверь, что ключ OpenAI указан правильно.\nОшибка: {e}")
+def send_crypto_info(message, coin):
+    try:
+        r = requests.get("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=usd")
+        data = r.json()
+        btc = data["bitcoin"]["usd"]
+        eth = data["ethereum"]["usd"]
+        bot.reply_to(message, f"💰 Курс:\n₿ BTC: {btc}$\n🌐 ETH: {eth}$")
+    except Exception as e:
+        bot.reply_to(message, f"⚠️ Не удалось получить курс.\nОшибка: {e}")
+
+def send_commodity_info(message, commodity):
+    try:
+        bot.reply_to(message, f"📊 {commodity.capitalize()} — один из ключевых активов. Могу рассказать подробнее, если хочешь!")
+    except Exception as e:
+        bot.reply_to(message, f"⚠️ Ошибка при получении данных по {commodity}: {e}")
+
+# 🎤 Функция озвучки текста
+def speak_text(text):
+    try:
+        response = client.audio.speech.create(
+            model="gpt-4o-mini-tts",
+            voice="alloy",  # можно заменить на 'verse', 'sage' и др.
+            input=text
+        )
+        audio_data = response.audio
+        audio_bytes = base64.b64decode(audio_data)
+        filename = "voice.ogg"
+        with open(filename, "wb") as f:
+            f.write(audio_bytes)
+        return filename
+    except Exception as e:
+        print(f"Ошибка при создании аудио: {e}")
+        return None
+
+# Ответ ИИ
 def generate_ai_reply(message):
     try:
         response = client.chat.completions.create(
@@ -63,8 +86,16 @@ def generate_ai_reply(message):
         )
         answer = response.choices[0].message.content
         bot.reply_to(message, answer)
+
+        # 🔊 Добавляем голосовой ответ
+        audio_file = speak_text(answer)
+        if audio_file:
+            with open(audio_file, "rb") as f:
+                bot.send_voice(message.chat.id, f)
+
     except Exception as e:
         bot.reply_to(message, f"⚠️ Ошибка при ответе ИИ: {e}")
+
 # Запуск телеграм-бота в отдельном потоке
 def run_bot():
     bot.infinity_polling()
