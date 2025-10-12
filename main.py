@@ -1,16 +1,17 @@
 import telebot
 import requests
-import openai
+from openai import OpenAI
 import os
 from flask import Flask
 import threading
 
 # Настройки
-openai.api_key = os.getenv("OPENAI_API_KEY")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 
 bot = telebot.TeleBot(BOT_TOKEN)
 app = Flask(__name__)
+client = OpenAI(api_key=OPENAI_API_KEY)
 
 @app.route('/')
 def home():
@@ -27,26 +28,25 @@ def reply_message(message):
     text = message.text.lower()
 
     if "биткоин" in text or "bitcoin" in text:
-        bot.reply_to(message, "🪙 Биткоин — популярная криптовалюта с ограниченной эмиссией.")
-    elif "курс" in text or "валют" in text:
+        bot.reply_to(message, "🪙 Биткоин — популярная криптовалюта с ограниченной эмиссией!")
         try:
             r = requests.get("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=usd")
             data = r.json()
             btc = data["bitcoin"]["usd"]
             eth = data["ethereum"]["usd"]
-            bot.reply_to(message, f"💰 BTC: {btc}$\n🧠 ETH: {eth}$")
+            bot.reply_to(message, f"💰 Курс:\n₿ BTC: {btc}$\n🦄 ETH: {eth}$")
         except Exception as e:
-            bot.reply_to(message, f"Не удалось получить курс 😕\nОшибка: {e}")
+            bot.reply_to(message, f"⚠️ Не удалось получить курс.\nОшибка: {e}")
     else:
         try:
-            response = openai.ChatCompletion.create(
+            response = client.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=[{"role": "user", "content": message.text}]
             )
             answer = response.choices[0].message.content
             bot.reply_to(message, answer)
         except Exception as e:
-            bot.reply_to(message, "⚠️ Я пока не могу ответить. Проверь, что ключ OpenAI указан правильно.")
+            bot.reply_to(message, f"⚠️ Я пока не могу ответить. Проверь, что ключ OpenAI указан правильно.\nОшибка: {e}")
 
 # Запуск телеграм-бота в отдельном потоке
 def run_bot():
