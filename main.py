@@ -4,9 +4,9 @@ from openai import OpenAI
 import os
 from flask import Flask
 import threading
-import base64  # 🔊 добавлено для голосового ответа
+import io  # добавлено для работы с аудио-потоком
 
-# Настройки
+# 🔑 Настройки
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 
@@ -18,17 +18,20 @@ client = OpenAI(api_key=OPENAI_API_KEY)
 def home():
     return "🤖 Бот работает и готов к диалогу!"
 
+# ===============================
 # Команда /start
+# ===============================
 @bot.message_handler(commands=['start'])
 def start_message(message):
     bot.reply_to(message, "Привет! 🌟 Я твой ИИ-бот. Могу рассказать про курс валют, инвестиции или просто поболтать!")
 
+# ===============================
 # Ответы на сообщения
+# ===============================
 @bot.message_handler(func=lambda msg: True)
 def reply_message(message):
     text = message.text.lower()
 
-    # Анализ рынка
     if "биткоин" in text or "bitcoin" in text:
         send_crypto_info(message, "bitcoin")
     elif "эфир" in text or "ethereum" in text:
@@ -40,23 +43,28 @@ def reply_message(message):
     else:
         generate_ai_reply(message)
 
+# ===============================
+# Функции анализа рынка
+# ===============================
 def send_crypto_info(message, coin):
     try:
         r = requests.get("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=usd")
         data = r.json()
         btc = data["bitcoin"]["usd"]
         eth = data["ethereum"]["usd"]
-        bot.reply_to(message, f"💰 Курс:\n₿ BTC: {btc}$\n🌐 ETH: {eth}$")
+        bot.reply_to(message, f"💰 Курс:\n₿ BTC: ${btc}\nΞ ETH: ${eth}")
     except Exception as e:
         bot.reply_to(message, f"⚠️ Не удалось получить курс.\nОшибка: {e}")
 
 def send_commodity_info(message, commodity):
     try:
-        bot.reply_to(message, f"📊 {commodity.capitalize()} — один из ключевых активов. Могу рассказать подробнее, если хочешь!")
+        bot.reply_to(message, f"📊 {commodity.capitalize()} — один из популярных торговых активов!")
     except Exception as e:
-        bot.reply_to(message, f"⚠️ Ошибка при получении данных по {commodity}: {e}")
+        bot.reply_to(message, f"⚠️ Ошибка при получении данных: {e}")
 
-# 🎤 Функция озвучки текста
+# ===============================
+# Функция озвучки текста 🎤
+# ===============================
 def speak_text(text):
     try:
         response = client.audio.speech.create(
@@ -64,17 +72,18 @@ def speak_text(text):
             voice="alloy",  # можно заменить на 'verse', 'sage' и др.
             input=text
         )
-        audio_data = response.audio
-        audio_bytes = base64.b64decode(audio_data)
+        audio_bytes = response.read()  # читаем поток
         filename = "voice.ogg"
         with open(filename, "wb") as f:
             f.write(audio_bytes)
         return filename
     except Exception as e:
-        print(f"Ошибка при создании аудио: {e}")
+        print(f"❌ Ошибка при создании аудио: {e}")
         return None
 
-# Ответ ИИ
+# ===============================
+# Генерация текста от ИИ
+# ===============================
 def generate_ai_reply(message):
     try:
         response = client.chat.completions.create(
@@ -84,6 +93,7 @@ def generate_ai_reply(message):
                 {"role": "user", "content": message.text}
             ]
         )
+
         answer = response.choices[0].message.content
         bot.reply_to(message, answer)
 
@@ -92,17 +102,23 @@ def generate_ai_reply(message):
         if audio_file:
             with open(audio_file, "rb") as f:
                 bot.send_voice(message.chat.id, f)
-
+            print("🎤 Голосовое сообщение отправлено.")
+        else:
+            print("⚠️ Не удалось создать голос.")
     except Exception as e:
         bot.reply_to(message, f"⚠️ Ошибка при ответе ИИ: {e}")
 
+# ===============================
 # Запуск телеграм-бота в отдельном потоке
+# ===============================
 def run_bot():
     bot.infinity_polling()
 
 thread = threading.Thread(target=run_bot)
 thread.start()
 
+# ===============================
 # Flask-сервер (для Koyeb)
+# ===============================
 port = int(os.getenv("PORT", 8000))
 app.run(host="0.0.0.0", port=port)
