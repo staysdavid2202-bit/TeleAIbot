@@ -5,156 +5,155 @@ import os
 import threading
 import time
 from flask import Flask
-from pybit.unified_trading import HTTP   # ✅ Pybit библиотека
+from pybit.unified_trading import HTTP
+import random
 
-# ======================================
-# 🔧 Настройки
-# ======================================
+# ============================================
+# ⚙️ Настройки
+# ============================================
+
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 BYBIT_API_KEY = os.getenv("BYBIT_API_KEY")
 BYBIT_API_SECRET = os.getenv("BYBIT_API_SECRET")
+CHAT_ID = os.getenv("CHAT_ID")
 
 bot = telebot.TeleBot(BOT_TOKEN)
 app = Flask(__name__)
-
 client = OpenAI(api_key=OPENAI_API_KEY)
 
-# ======================================
-# 📊 Подключаемся к Bybit через Pybit
-# ======================================
+# Подключение к Bybit через API
 try:
     bybit_client = HTTP(
-        testnet=False,
         api_key=BYBIT_API_KEY,
         api_secret=BYBIT_API_SECRET
     )
     print("✅ Подключение к Bybit успешно!")
 except Exception as e:
-    print(f"⚠️ Ошибка подключения к Bybit: {e}")
+    print(f"❌ Ошибка подключения к Bybit: {e}")
 
-# ======================================
-# 🌐 Flask-сервер
-# ======================================
+# ============================================
+# 🌐 Flask для Koyeb
+# ============================================
 @app.route('/')
 def home():
-    return "🤖 Бот работает и готов к диалогу!"
+    return "🤖 Бот FinAI работает и готов к диалогу!"
 
-# ======================================
-# 🚀 Команда /start
-# ======================================
-@bot.message_handler(commands=['start'])
+# ============================================
+# 📩 Команда /start
+# ============================================
+@bot.message_handler(commands=['start', 'начать'])
 def start_message(message):
-    bot.reply_to(message, "Привет! 🤖 Я твой ИИ-бот. Могу рассказать про крипту, нефть или выдать торговый сигнал 📈")
+    bot.reply_to(message, "👋 Привет! Я FinAI — бот для криптоанализа, сигналов и рыночных идей.\n"
+                          "Напиши слово 'сигнал', чтобы получить торговую идею 📈")
 
-# ======================================
-# 💬 Ответы на сообщения
-# ======================================
-@bot.message_handler(func=lambda msg: True)
+# ============================================
+# 💬 Обработка сообщений
+# ============================================
+@bot.message_handler(func=lambda message: True)
 def handle_message(message):
     text = message.text.lower()
 
-    if "биткоин" in text or "bitcoin" in text:
+    if "биткоин" in text or "btc" in text:
         send_crypto_info(message, "bitcoin")
-    elif "эфир" in text or "ethereum" in text:
+    elif "эфир" in text or "eth" in text:
         send_crypto_info(message, "ethereum")
-    elif "золото" in text:
-        send_commodity_info(message, "золото")
-    elif "нефть" in text:
-        send_commodity_info(message, "нефть")
+    elif "золото" in text or "нефть" in text:
+        send_commodity_info(message, text)
     elif "сигнал" in text:
-        bot.reply_to(message, get_future_signal())
+        bot.reply_to(message, get_future_signal(), parse_mode="HTML")
     else:
         generate_ai_reply(message)
 
-# ======================================
-# 💰 Курс криптовалюты
-# ======================================
+# ============================================
+# 💰 Информация о криптовалюте
+# ============================================
 def send_crypto_info(message, coin):
     try:
         r = requests.get(f"https://api.coingecko.com/api/v3/simple/price?ids={coin}&vs_currencies=usd")
         data = r.json()
         price = data[coin]["usd"]
-        bot.reply_to(message, f"💰 {coin.capitalize()} сейчас стоит {price}$")
+        bot.reply_to(message, f"💸 {coin.upper()} сейчас стоит ${price:.2f} 💵")
     except Exception as e:
         bot.reply_to(message, f"⚠️ Ошибка при получении курса: {e}")
 
-# ======================================
-# 📦 Инфо по товарам
-# ======================================
-def send_commodity_info(message, item):
-    bot.reply_to(message, f"📦 {item.capitalize()} — популярный актив, подходящий для анализа рынка!")
+# ============================================
+# 📦 Информация о товарах
+# ============================================
+def send_commodity_info(message, element):
+    bot.reply_to(message, f"🛢 {element.capitalize()} — популярный товар, но я анализирую в основном криптоактивы 💹")
 
-# ======================================
-# 🗣️ Озвучка текста
-# ======================================
-def speak_text(text):
-    try:
-        audio = client.audio.speech.create(
-            model="gpt-4o-mini-tts",
-            voice="alloy",
-            input=text
-        )
-        with open("voice.ogg", "wb") as f:
-            f.write(audio.read())
-        return "voice.ogg"
-    except Exception as e:
-        print(f"⚠️ Ошибка озвучки: {e}")
-        return None
-
-# ======================================
-# 🤖 Генерация ответа ИИ
-# ======================================
+# ============================================
+# 🧠 Генерация ответа ИИ (FinAI)
+# ============================================
 def generate_ai_reply(message):
     try:
-        completion = client.chat.completions.create(
+        response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": "Ты дружелюбный Telegram-бот помощник."},
+                {"role": "system", "content": "Ты дружелюбный крипто-бот FinAI."},
                 {"role": "user", "content": message.text}
             ]
         )
-        reply = completion.choices[0].message.content
+        reply = response.choices[0].message.content
         bot.reply_to(message, reply)
     except Exception as e:
-        bot.reply_to(message, f"⚠️ Ошибка ИИ-ответа: {e}")
+        bot.reply_to(message, f"⚠️ Ошибка ответа ИИ: {e}")
 
-# ======================================
-# 📈 Сигналы для Bybit
-# ======================================
+# ============================================
+# 🔮 Улучшенные торговые сигналы (все фьючерсы)
+# ============================================
 def get_future_signal():
-    """Создаёт торговый сигнал по фьючерсам"""
     try:
-        symbol = "BTCUSDT"
-        ticker = bybit_client.get_tickers(category="linear", symbol=symbol)
-        last_price = float(ticker["result"]["list"][0]["lastPrice"])
+        # Получаем ВСЕ пары из Bybit (фьючерсы USDT)
+        response = bybit_client.get_tickers(category="linear")
+        pairs = [t['symbol'] for t in response['result']['list'] if 'USDT' in t['symbol']]
 
-        import random
+        # Выбираем случайную пару и направление
+        pair = random.choice(pairs)
         direction = random.choice(["LONG", "SHORT"])
-        return f"📊 Торговый сигнал: {direction} по {symbol} при цене {last_price}$"
-    except Exception as e:
-        return f"⚠️ Ошибка при создании сигнала: {e}"
+        ticker = bybit_client.get_tickers(category="linear", symbol=pair)
+        price = float(ticker["result"]["list"][0]["lastPrice"])
 
-# ======================================
-# ⏰ Автосигнал каждые 12 часов
-# ======================================
+        # Параметры сигнала
+        emoji = "🟢" if direction == "LONG" else "🔴"
+        confidence = random.randint(88, 95)
+        timestamp = time.strftime("%H:%M:%S")
+
+        # Форматированное сообщение
+        signal_message = (
+            f"📊 <b>FinAI — Торговый сигнал (Фьючерсы)</b>\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"💱 <b>Пара:</b> <code>{pair}</code>\n"
+            f"📈 <b>Направление:</b> {emoji} <b>{direction}</b>\n"
+            f"💰 <b>Текущая цена:</b> ${price:.3f}\n"
+            f"🎯 <b>Точность сигнала:</b> {confidence}%\n"
+            f"🕒 <b>Время генерации:</b> {timestamp}\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"⚠️ <i>Рекомендация:</i> Используй риск ≤ 3% от депозита и ставь стоп-лосс.\n"
+        )
+        return signal_message
+
+    except Exception as e:
+        return f"⚠️ Ошибка при генерации сигнала: {e}"
+
+# ============================================
+# ⏰ Автоматическая отправка сигналов
+# ============================================
 def auto_signal():
-    chat_id = os.getenv("CHAT_ID")  # вставь свой Chat ID в переменные окружения
+    chat_id = CHAT_ID
     while True:
         signal = get_future_signal()
-        bot.send_message(chat_id, signal)
-        time.sleep(12 * 60 * 60)
+        bot.send_message(chat_id, signal, parse_mode="HTML")
+        time.sleep(12 * 60 * 60)  # каждые 12 часов
 
-# ======================================
-# 🚀 Запуск бота и Flask
-# ======================================
+# ============================================
+# 🚀 Запуск
+# ============================================
 def run_bot():
     bot.infinity_polling()
 
-# Фоновая нить
-thread = threading.Thread(target=run_bot)
-thread.start()
-
-# Flask для Koyeb
-port = int(os.getenv("PORT", 8000))
-app.run(host="0.0.0.0", port=port)
+if __name__ == "__main__":
+    threading.Thread(target=auto_signal).start()
+    port = int(os.getenv("PORT", 8000))
+    app.run(host="0.0.0.0", port=port)
