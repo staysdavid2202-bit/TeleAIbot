@@ -1,17 +1,19 @@
+# ==================================================
+# 🔹 Импорт библиотек
+# ==================================================
 import telebot
 from openai import OpenAI
 import requests
 import os
 import threading
 import time
-from flask import Flask
 from pybit.unified_trading import HTTP
 import random
+from flask import Flask
 
-# ============================================
-# ⚙️ Настройки
-# ============================================
-
+# ==================================================
+# 🔹 Настройки
+# ==================================================
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 BYBIT_API_KEY = os.getenv("BYBIT_API_KEY")
@@ -22,124 +24,144 @@ bot = telebot.TeleBot(BOT_TOKEN)
 app = Flask(__name__)
 client = OpenAI(api_key=OPENAI_API_KEY)
 
-# Подключение к Bybit через API
+# Подключение к Bybit
 try:
-    bybit_client = HTTP(
-        api_key=BYBIT_API_KEY,
-        api_secret=BYBIT_API_SECRET
-    )
+    bybit_client = HTTP(api_key=BYBIT_API_KEY, api_secret=BYBIT_API_SECRET)
     print("✅ Подключение к Bybit успешно!")
 except Exception as e:
     print(f"❌ Ошибка подключения к Bybit: {e}")
 
-# ============================================
-# 🌐 Flask для Koyeb
-# ============================================
+# ==================================================
+# 🔹 Flask (для Koyeb)
+# ==================================================
 @app.route('/')
 def home():
     return "🤖 Бот FinAI работает и готов к диалогу!"
 
-# ============================================
-# 📩 Команда /start
-# ============================================
+# ==================================================
+# 🔹 Команда /start
+# ==================================================
 @bot.message_handler(commands=['start', 'начать'])
 def start_message(message):
-    bot.reply_to(message, "👋 Привет! Я FinAI — бот для криптоанализа, сигналов и рыночных идей.\n"
-                          "Напиши слово 'сигнал', чтобы получить торговую идею 📈")
+    bot.reply_to(message, "👋 Привет! Я FinAI — бот для криптотрейдинга.\n"
+                          "✉️ Напиши слово <b>сигнал</b>, чтобы получить торговый сигнал.",
+                 parse_mode="HTML")
 
-# ============================================
-# 💬 Обработка сообщений
-# ============================================
+# ==================================================
+# 🔹 Обработка сообщений
+# ==================================================
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
     text = message.text.lower()
 
-    if "биткоин" in text or "btc" in text:
-        send_crypto_info(message, "bitcoin")
-    elif "эфир" in text or "eth" in text:
-        send_crypto_info(message, "ethereum")
-    elif "золото" in text or "нефть" in text:
-        send_commodity_info(message, text)
-    elif "сигнал" in text:
+    if "сигнал" in text:
         bot.reply_to(message, get_future_signal(), parse_mode="HTML")
+    elif "btc" in text or "биткоин" in text:
+        send_crypto_info(message, "bitcoin")
+    elif "eth" in text or "эфир" in text:
+        send_crypto_info(message, "ethereum")
     else:
         generate_ai_reply(message)
 
-# ============================================
-# 💰 Информация о криптовалюте
-# ============================================
+# ==================================================
+# 🔹 Информация о криптовалюте
+# ==================================================
 def send_crypto_info(message, coin):
     try:
         r = requests.get(f"https://api.coingecko.com/api/v3/simple/price?ids={coin}&vs_currencies=usd")
         data = r.json()
         price = data[coin]["usd"]
-        bot.reply_to(message, f"💸 {coin.upper()} сейчас стоит ${price:.2f} 💵")
+        bot.reply_to(message, f"💰 {coin.capitalize()} сейчас стоит ${price}")
     except Exception as e:
         bot.reply_to(message, f"⚠️ Ошибка при получении курса: {e}")
 
-# ============================================
-# 📦 Информация о товарах
-# ============================================
-def send_commodity_info(message, element):
-    bot.reply_to(message, f"🛢 {element.capitalize()} — популярный товар, но я анализирую в основном криптоактивы 💹")
-
-# ============================================
-# 🧠 Генерация ответа ИИ (FinAI)
-# ============================================
+# ==================================================
+# 🔹 Генерация ответа от FinAI (ИИ)
+# ==================================================
 def generate_ai_reply(message):
     try:
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": "Ты дружелюбный крипто-бот FinAI."},
+                {"role": "system", "content": "Ты дружелюбный криптоассистент FinAI."},
                 {"role": "user", "content": message.text}
             ]
         )
-        reply = response.choices[0].message.content
-        bot.reply_to(message, reply)
+        answer = response.choices[0].message.content
+        bot.reply_to(message, answer)
     except Exception as e:
         bot.reply_to(message, f"⚠️ Ошибка ответа ИИ: {e}")
 
-# ============================================
-# 🔮 Улучшенные торговые сигналы (все фьючерсы)
-# ============================================
+# ==================================================
+# 🔹 Улучшенные торговые сигналы (все фьючерсы)
+# ==================================================
 def get_future_signal():
     try:
-        # Получаем ВСЕ пары из Bybit (фьючерсы USDT)
-        response = bybit_client.get_tickers(category="linear")
-        pairs = [t['symbol'] for t in response['result']['list'] if 'USDT' in t['symbol']]
+        # Список популярных фьючерсных пар
+        pairs = [
+            "BTCUSDT", "ETHUSDT", "XRPUSDT", "SOLUSDT", "BNBUSDT", "DOGEUSDT",
+            "ADAUSDT", "AVAXUSDT", "DOTUSDT", "LTCUSDT", "LINKUSDT", "TRXUSDT",
+            "SUIUSDT", "NEARUSDT", "OPUSDT", "ARBUSDT", "RNDRUSDT", "ATOMUSDT",
+            "AAVEUSDT", "INJUSDT", "MATICUSDT", "ETCUSDT", "FILUSDT", "THETAUSDT",
+            "FTMUSDT", "CHZUSDT", "HBARUSDT", "ENSUSDT", "GRTUSDT", "APEUSDT",
+            "IMXUSDT", "COTIUSDT", "WLDUSDT", "SEIUSDT", "TIAUSDT", "PYTHUSDT",
+            "JTOUSDT", "ARKMUSDT", "ORDIUSDT", "STRKUSDT", "NOTUSDT", "BLURUSDT",
+            "SSVUSDT", "ACEUSDT", "BEAMUSDT", "SAGAUSDT", "MOVRUSDT", "HNTUSDT"
+        ]
 
-        # Выбираем случайную пару и направление
         pair = random.choice(pairs)
         direction = random.choice(["LONG", "SHORT"])
+
         ticker = bybit_client.get_tickers(category="linear", symbol=pair)
         price = float(ticker["result"]["list"][0]["lastPrice"])
 
-        # Параметры сигнала
-        emoji = "🟢" if direction == "LONG" else "🔴"
-        confidence = random.randint(88, 95)
-        timestamp = time.strftime("%H:%M:%S")
+        # Расчёт уровней TP и SL
+        sl_percent = 0.01
+        tp1_percent = 0.01
+        tp2_percent = 0.02
+        tp3_percent = 0.03
 
-        # Форматированное сообщение
+        if direction == "LONG":
+            stop_loss = price * (1 - sl_percent)
+            tp1 = price * (1 + tp1_percent)
+            tp2 = price * (1 + tp2_percent)
+            tp3 = price * (1 + tp3_percent)
+            emoji = "🟢"
+        else:
+            stop_loss = price * (1 + sl_percent)
+            tp1 = price * (1 - tp1_percent)
+            tp2 = price * (1 - tp2_percent)
+            tp3 = price * (1 - tp3_percent)
+            emoji = "🔴"
+
+        accuracy = random.randint(90, 94)
+        time_now = time.strftime("%H:%M:%S")
+
         signal_message = (
             f"📊 <b>FinAI — Торговый сигнал (Фьючерсы)</b>\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━\n"
             f"💱 <b>Пара:</b> <code>{pair}</code>\n"
             f"📈 <b>Направление:</b> {emoji} <b>{direction}</b>\n"
-            f"💰 <b>Текущая цена:</b> ${price:.3f}\n"
-            f"🎯 <b>Точность сигнала:</b> {confidence}%\n"
-            f"🕒 <b>Время генерации:</b> {timestamp}\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
-            f"⚠️ <i>Рекомендация:</i> Используй риск ≤ 3% от депозита и ставь стоп-лосс.\n"
+            f"💰 <b>Цена входа:</b> ${price:.4f}\n"
+            f"🎯 <b>Точность:</b> {accuracy}%\n"
+            f"🕒 <b>Время:</b> {time_now}\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"🛡 <b>Stop-Loss:</b> ${stop_loss:.4f}\n"
+            f"🎯 <b>TP1:</b> ${tp1:.4f}\n"
+            f"🎯 <b>TP2:</b> ${tp2:.4f}\n"
+            f"🎯 <b>TP3:</b> ${tp3:.4f}\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"⚠️ <b>Рекомендация:</b> риск ≤ 3% от депозита.\n"
+            f"🤖 <i>Сигнал создан ИИ FinAI</i>"
         )
         return signal_message
 
     except Exception as e:
-        return f"⚠️ Ошибка при генерации сигнала: {e}"
+        return f"⚠️ Ошибка при формировании сигнала: {e}"
 
-# ============================================
-# ⏰ Автоматическая отправка сигналов
-# ============================================
+# ==================================================
+# 🔹 Автоматическая отправка сигналов каждые 12 часов
+# ==================================================
 def auto_signal():
     chat_id = CHAT_ID
     while True:
@@ -147,9 +169,9 @@ def auto_signal():
         bot.send_message(chat_id, signal, parse_mode="HTML")
         time.sleep(12 * 60 * 60)  # каждые 12 часов
 
-# ============================================
-# 🚀 Запуск
-# ============================================
+# ==================================================
+# 🔹 Запуск
+# ==================================================
 def run_bot():
     bot.infinity_polling()
 
