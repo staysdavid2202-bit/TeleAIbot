@@ -1,14 +1,12 @@
 import os
 import time
-
-# Устанавливаем нужную библиотеку
-os.system("pip install pyTelegramBotAPI")
-time.sleep(5)
-
 import telebot
 
-# ВСТАВЬ сюда свой токен от BotFather
-TOKEN = 8392536324:AAHr6dlM0hk9Qv5WP-rTOUsLMdvPBw6PtQw
+# Делаем небольшую паузу, чтобы сервер успел запуститься
+time.sleep(5)
+
+# Получаем токен из переменной окружения Koyeb
+TOKEN = os.getenv("BOT_TOKEN")
 
 bot = telebot.TeleBot(TOKEN)
 
@@ -21,4 +19,4 @@ def echo_all(message):
     bot.reply_to(message, f"Ты сказал: {message.text}")
 
 print("Бот запущен...")
-bot.polling()
+bot.polling(non_stop=True)
