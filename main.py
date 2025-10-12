@@ -1,17 +1,16 @@
 import telebot
 import requests
-from openai import OpenAI
+import openai
 import os
 from flask import Flask
 import threading
 
 # Настройки
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+openai.api_key = os.getenv("OPENAI_API_KEY")
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 
 bot = telebot.TeleBot(BOT_TOKEN)
 app = Flask(__name__)
-client = OpenAI(api_key=OPENAI_API_KEY)
 
 @app.route('/')
 def home():
@@ -20,33 +19,58 @@ def home():
 # Команда /start
 @bot.message_handler(commands=['start'])
 def start_message(message):
-    bot.reply_to(message, "Привет! 🌟 Я твой ИИ-бот. Могу рассказать про курс валют, инвестиции или просто поболтать!")
+    bot.reply_to(message, "Привет! 🌞 Я твой ИИ-бот. Могу рассказать про инвестиции, анализ рынка или просто поболтать!")
 
-# Ответы на сообщения
+# Основная логика ответов
 @bot.message_handler(func=lambda msg: True)
 def reply_message(message):
     text = message.text.lower()
 
+    # Анализ рынка
     if "биткоин" in text or "bitcoin" in text:
-        bot.reply_to(message, "🪙 Биткоин — популярная криптовалюта с ограниченной эмиссией!")
-        try:
-            r = requests.get("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=usd")
-            data = r.json()
-            btc = data["bitcoin"]["usd"]
-            eth = data["ethereum"]["usd"]
-            bot.reply_to(message, f"💰 Курс:\n₿ BTC: {btc}$\n🦄 ETH: {eth}$")
-        except Exception as e:
-            bot.reply_to(message, f"⚠️ Не удалось получить курс.\nОшибка: {e}")
+        send_crypto_info(message, "bitcoin")
+    elif "эфир" in text or "ethereum" in text:
+        send_crypto_info(message, "ethereum")
+    elif "золото" in text or "gold" in text:
+        send_commodity_info(message, "gold")
+    elif "нефть" in text or "oil" in text:
+        send_commodity_info(message, "oil")
     else:
-        try:
-            response = client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=[{"role": "user", "content": message.text}]
-            )
-            answer = response.choices[0].message.content
-            bot.reply_to(message, answer)
-        except Exception as e:
-            bot.reply_to(message, f"⚠️ Я пока не могу ответить. Проверь, что ключ OpenAI указан правильно.\nОшибка: {e}")
+        generate_ai_reply(message)
+
+# Получение курса криптовалют
+def send_crypto_info(message, symbol):
+    try:
+        r = requests.get(f"https://api.coingecko.com/api/v3/simple/price?ids={symbol}&vs_currencies=usd")
+        data = r.json()
+        price = data[symbol]["usd"]
+        bot.reply_to(message, f"💰 {symbol.capitalize()} сейчас стоит ${price:,}")
+    except Exception as e:
+        bot.reply_to(message, f"⚠️ Не удалось получить данные по {symbol}. Ошибка: {e}")
+
+# Курс золота и нефти
+def send_commodity_info(message, asset):
+    try:
+        if asset == "gold":
+            url = "https://commodities-api.com/api/latest?access_key=YOUR_ACCESS_KEY&symbols=XAU"
+            bot.reply_to(message, "🏅 Курс золота сейчас обновляется... (добавь свой ключ в API commodities-api.com)")
+        elif asset == "oil":
+            url = "https://api.api-ninjas.com/v1/commodities?symbol=WTI_OIL"
+            bot.reply_to(message, "🛢 Курс нефти скоро появится... (можно добавить API ключ для нефти)")
+    except Exception as e:
+        bot.reply_to(message, f"⚠️ Ошибка при получении данных: {e}")
+
+# Ответ от ChatGPT
+def generate_ai_reply(message):
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user", "content": message.text}]
+        )
+        answer = response.choices[0].message.content
+        bot.reply_to(message, answer)
+    except Exception as e:
+        bot.reply_to(message, f"⚠️ Я пока не могу ответить. Ошибка: {e}")
 
 # Запуск телеграм-бота в отдельном потоке
 def run_bot():
@@ -55,6 +79,6 @@ def run_bot():
 thread = threading.Thread(target=run_bot)
 thread.start()
 
-# Flask-сервер (для Koyeb)
+# Flask-сервер для Koyeb
 port = int(os.getenv("PORT", 8000))
 app.run(host="0.0.0.0", port=port)
