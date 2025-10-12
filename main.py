@@ -14,12 +14,12 @@ app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "Бот работает!"
+    return "🤖 Бот работает и готов к диалогу!"
 
 # Команда /start
 @bot.message_handler(commands=['start'])
 def start_message(message):
-    bot.reply_to(message, "Привет! 🤖 Я твой ИИ-бот. Напиши что-нибудь!")
+    bot.reply_to(message, "Привет! 🌟 Я твой ИИ-бот. Могу рассказать про курс валют, инвестиции или просто поболтать!")
 
 # Ответы на сообщения
 @bot.message_handler(func=lambda msg: True)
@@ -27,16 +27,26 @@ def reply_message(message):
     text = message.text.lower()
 
     if "биткоин" in text or "bitcoin" in text:
-        bot.reply_to(message, "🪙 Биткоин — это известная криптовалюта!")
-    elif "курс" in text:
+        bot.reply_to(message, "🪙 Биткоин — популярная криптовалюта с ограниченной эмиссией.")
+    elif "курс" in text or "валют" in text:
         try:
-            r = requests.get("https://api.coindesk.com/v1/bpi/currentprice/USD.json")
-            price = r.json()["bpi"]["USD"]["rate"]
-            bot.reply_to(message, f"💰 Текущий курс биткоина: {price} USD")
-        except:
-            bot.reply_to(message, "Не удалось получить курс 😕")
+            r = requests.get("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=usd")
+            data = r.json()
+            btc = data["bitcoin"]["usd"]
+            eth = data["ethereum"]["usd"]
+            bot.reply_to(message, f"💰 BTC: {btc}$\n🧠 ETH: {eth}$")
+        except Exception as e:
+            bot.reply_to(message, f"Не удалось получить курс 😕\nОшибка: {e}")
     else:
-        bot.reply_to(message, "🙂 Я учусь! Спроси про инвестиции или курс валют 😉")
+        try:
+            response = openai.ChatCompletion.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": message.text}]
+            )
+            answer = response.choices[0].message.content
+            bot.reply_to(message, answer)
+        except Exception as e:
+            bot.reply_to(message, "⚠️ Я пока не могу ответить. Проверь, что ключ OpenAI указан правильно.")
 
 # Запуск телеграм-бота в отдельном потоке
 def run_bot():
