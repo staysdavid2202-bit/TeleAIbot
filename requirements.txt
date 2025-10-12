@@ -2,4 +2,4 @@ pyTelegramBotAPI
 flask
 requests
 openai
-bybit
+pybit
