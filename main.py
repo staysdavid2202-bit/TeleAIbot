@@ -466,3 +466,36 @@ if __name__ == "__main__":
         exit(1)
     # Start scheduler + polling
     start_advanced_scheduler()
+
+from flask import Flask
+import threading
+
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "Bot is running!"
+
+def run_flask():
+    app.run(host="0.0.0.0", port=8000)
+
+if __name__ == "__main__":
+    # Запускаем Flask в отдельном потоке
+    threading.Thread(target=run_flask).start()
+    
+    # Запуск основного кода бота
+    import time
+    import telebot
+    from apscheduler.schedulers.background import BackgroundScheduler
+
+    bot = telebot.TeleBot("ТВОЙ_TELEGRAM_TOKEN")
+
+    @bot.message_handler(commands=['start'])
+    def start(message):
+        bot.send_message(message.chat.id, "Бот запущен!")
+
+    scheduler = BackgroundScheduler(timezone="UTC")
+    scheduler.start()
+
+    print("Starting bot polling...")
+    bot.polling(none_stop=True)
