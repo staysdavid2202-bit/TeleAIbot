@@ -480,32 +480,41 @@ def analyze_market_and_pick(universe=None, top_n=SEND_TOP_N):
 
 # ----------------- Scheduler loop -------------------
 def scheduler_loop():
-    print("Scheduler started (UTC times). Will send at:", SEND_TIMES)
-    last_sent_minute = None
+    print("Scheduler loop started.")
+    last_sent_hour = None
+    MD_OFFSET = -6  # смещение для MD времени (UTC−6)
+    SEND_HOURS = list(range(7, 21))  # 07:00 - 20:00
+
     while True:
         try:
-            now = datetime.utcnow()
-            hm = now.strftime("%H:%M")
-            # чтобы не слать повторно в ту же минуту
-            if hm in SEND_TIMES and last_sent_minute != hm:
-                print(f"[{now.isoformat()}] Generating signals...")
-                picks = analyze_market_and_pick()
+            now_utc = datetime.utcnow().replace(tzinfo=timezone.utc)
+            now_md = now_utc.astimezone(timezone(timedelta(hours=MD_OFFSET)))
+            current_hour = now_md.hour
+            current_minute = now_md.minute
+
+            # Отправляем сигнал в начале часа (например 07:00, 08:00, ... 20:00)
+            if current_hour in SEND_HOURS and current_minute == 0 and last_sent_hour != current_hour:
+                print(f"[{now_md.strftime('%Y-%m-%d %H:%M:%S')}] Генерация сигнала...")
+
+                picks = analyze_market_and_pick()  # твой анализ рынка
+
                 if not picks:
-                    if bot:
-                        bot.send_message(CHAT_ID, "FinAI: сегодня подходящих сигналов не обнаружено.")
-                    print("No signals found.")
+                    print("Нет подходящих сигналов.")
                 else:
                     for res in picks:
-                        send_signal_to_telegram(res)
+                        send_signal_to_tg(res)
                         time.sleep(1)
-                last_sent_minute = hm
-            # сбрасываем флаг при смене минуты
-            if hm not in SEND_TIMES:
-                last_sent_minute = None
-            # спим 20 секунд
-            time.sleep(20)
+
+                last_sent_hour = current_hour
+
+            # Сбрасываем флаг после выхода из часа
+            if current_hour not in SEND_HOURS:
+                last_sent_hour = None
+
+            time.sleep(30)
+
         except Exception as e:
-            print("scheduler_loop exception", e)
+            print("Ошибка в scheduler_loop:", e)
             traceback.print_exc()
             time.sleep(10)
 
