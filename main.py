@@ -530,12 +530,25 @@ def start_threads():
     else:
         print("Bot not configured; skipping polling thread.")
 
-# ----------------- Основная точка входа -------------------
+# ---------------- Основная точка входа ----------------
 if __name__ == "__main__":
     # Запускаем планировщик в фоновом потоке
     start_threads()
 
     # Запускаем Flask на порту, заданном в окружении (Koyeb передаёт PORT)
     port = int(os.getenv("PORT", "8000"))
-    # Для Koyeb важно слушать 0.0.0.0:PORT
     print(f"Starting Flask on 0.0.0.0:{port}")
+
+    # Запускаем Flask в отдельном потоке
+    from threading import Thread
+    flask_thread = Thread(target=lambda: app.run(host="0.0.0.0", port=port))
+    flask_thread.start()
+
+    print("Flask started successfully on port", port)
+
+    # Держим процесс активным (чтобы Koyeb не останавливал контейнер)
+    try:
+        while True:
+            time.sleep(60)
+    except KeyboardInterrupt:
+        print("Bot stopped manually")
