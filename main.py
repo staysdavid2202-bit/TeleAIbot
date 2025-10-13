@@ -482,7 +482,7 @@ def analyze_market_and_pick(universe=None, top_n=SEND_TOP_N):
 def scheduler_loop():
     print("Scheduler loop started.")
     last_sent_hour = None
-    MD_OFFSET = -6  # смещение для MD времени (UTC−6)
+    MD_OFFSET = +2  # смещение для MD времени (UTC+2)
     SEND_HOURS = list(range(7, 21))  # 07:00 - 20:00
 
     while True:
