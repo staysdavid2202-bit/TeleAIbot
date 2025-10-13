@@ -538,4 +538,4 @@ if __name__ == "__main__":
     # Запускаем Flask на порту, заданном в окружении (Koyeb передаёт PORT)
     port = int(os.getenv("PORT", "8000"))
     # Для Koyeb важно слушать 0.0.0.0:PORT
-    print(f"Starting Flask on 0.0.0.0:{port}
+    print(f"Starting Flask on 0.0.0.0:{port}")
