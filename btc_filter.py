@@ -38,33 +38,67 @@ def rsi(series, n=14):
 
 # --- основной анализ BTC ---
 def fetch_btc_trend(interval="60", limit=200):
-    """
-# --- Дополнительные индикаторы ---
+    try:
+        j = safe_get(BYBIT_KLINE, params={
+            "category": "linear",
+            "symbol": "BTCUSDT",
+            "interval": interval,
+            "limit": limit
+        })
+
+        if not j or not j.get("result"):
+            return {
+                "trend": "NEUTRAL",
+                "strength": 0,
+                "rsi_state": "normal",
+                "volatility": "medium"
+            }
+
+        data = j["result"]["list"]
+        df = pd.DataFrame([{
+            "time": int(c[0]),
+            "open": float(c[1]),
+            "high": float(c[2]),
+            "low": float(c[3]),
+            "close": float(c[4])
+        } for c in data[::-1]])
+
+        # --- Дополнительные индикаторы ---
         macd_res = macd(df)
         stoch_res = stoch_rsi(df)
         boll_res = bollinger_bands(df)
 
-        # Согласуем общий тренд
+        # --- Определение надёжности сигнала ---
         подтверждения = 0
-        if macd_res["macd_trend"] == тенденция:
+        if macd_res["macd_trend"] == "текущая_тенденция":
             подтверждения += 1
-        if stoch_res["stoch_state"] in ["рост", "перекупленность"] and тенденция == "БЫЧИЙ":
+        if stoch_res["stoch_state"] in ["рост", "перекупленность"] and macd_res["macd_trend"] == "БЫЧИЙ":
             подтверждения += 1
-        if stoch_res["stoch_state"] in ["падение", "перепроданность"] and тенденция == "МЕДВЕЖИЙ":
+        if stoch_res["stoch_state"] in ["падение", "перепроданность"] and macd_res["macd_trend"] == "МЕДВЕЖИЙ":
             подтверждения += 1
 
-        если подтверждения >= 2:
-            надежность = "высокая"
+        if подтверждения >= 2:
+            надёжность = "высокая"
         elif подтверждения == 1:
-            надежность = "средняя"
+            надёжность = "средняя"
         else:
-            надежность = "низкая"    
-    Возвращает состояние рынка BTC:
-    - тренд: BULLISH / BEARISH / NEUTRAL
-    - сила: от 0 до 1
-    - состояние RSI: overbought / oversold / normal
-    - волатильность: низкая / средняя / высокая
-    """
+            надёжность = "низкая"
+
+        # --- Возвращаем результат ---
+        return {
+            "trend": macd_res["macd_trend"],
+            "strength": macd_res["strength"],
+            "rsi_state": stoch_res["stoch_state"],
+            "volatility": boll_res["volatility"],
+            "macd": macd_res,
+            "stoch_rsi": stoch_res,
+            "bollinger": boll_res,
+            "reliability": надёжность
+        }
+
+    except Exception as e:
+        print("Ошибка в btc_filter:", e)
+        return {"trend": "NEUTRAL", "strength": 0}
 
     try:
         j = safe_get(BYBIT_KLINE, params={
