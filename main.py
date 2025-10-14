@@ -478,21 +478,24 @@ def analyze_market_and_pick(universe=None, top_n=SEND_TOP_N):
     top = [c[1] for c in candidates[:top_n]]
     return top
 
-# ---------------- Scheduler loop ----------------
+    # ---------------- Scheduler loop ----------------
 import time
 import traceback
 from datetime import datetime, timedelta, timezone
 import threading
 
-MD_OFFSET = +2  # смещение для твоего часового пояса
-SEND_HOURS = list(range(7, 21))  # часы, когда бот будет отправлять сигналы (7:00–20:59)
-CHECK_INTERVAL = 20  # проверка каждые 20 секунд
+# Настройки для Молдовы (UTC+2)
+MD_OFFSET = +2  
+SEND_HOURS = list(range(7, 21))  # От 07:00 до 20:59
+CHECK_INTERVAL = 20  # Проверка каждые 20 секунд
 
 def scheduler_loop():
     print("Scheduler loop started.")
     last_sent_hour = None
+
     while True:
         try:
+            # Определяем текущее время по Молдове
             now_utc = datetime.utcnow().replace(tzinfo=timezone.utc)
             now_md = now_utc.astimezone(timezone(timedelta(hours=MD_OFFSET)))
             current_hour = now_md.hour
@@ -500,23 +503,21 @@ def scheduler_loop():
 
             print(f"[{now_md.strftime('%Y-%m-%d %H:%M:%S')}] Проверка времени...")
 
-            if (
-                current_hour in SEND_HOURS
-                and 0 <= current_minute < 2
-                and last_sent_hour != current_hour
-            ):
-                print(f"[{now_md.strftime('%Y-%m-%d %H:%M:%S')}] Генерация сигналов...")
+            # Если наступил новый час в заданном диапазоне — отправляем сигнал
+            if current_hour in SEND_HOURS and current_minute == 0 and last_sent_hour != current_hour:
+                print(f"[{now_md.strftime('%Y-%m-%d %H:%M:%S')}] Генерация сигнала...")
 
-                picks = analyze_market_and_pick()  # твоя функция анализа рынка
+                picks = analyze_market_and_pick()  # Вызов твоей функции анализа
                 if not picks:
                     print("Нет подходящих сигналов.")
                 else:
                     for res in picks:
-                        send_signal_to_tg(res)  # отправка сигнала в Telegram
+                        send_signal_to_tg(res)  # Отправка сигнала в Telegram
                         time.sleep(1)
 
                 last_sent_hour = current_hour
 
+            # Сброс после выхода из часа
             if current_hour not in SEND_HOURS:
                 last_sent_hour = None
 
@@ -527,26 +528,22 @@ def scheduler_loop():
             traceback.print_exc()
             time.sleep(10)
 
+# ---------------- Запуск потоков и Flask ----------------
 def start_threads():
-    t = threading.Thread(target=scheduler_loop, name="scheduler", daemon=True)
-    t.start()
-
-
-# ----------------- Запуск потоков и Flask -------------------
-def start_threads():
-    # Thread: scheduler
+    # Поток для планировщика
     t = threading.Thread(target=scheduler_loop, name="scheduler", daemon=True)
     t.start()
     print("Scheduler thread started.")
 
-    # Thread: telegram polling (если BOT_TOKEN задан)
+    # Поток для Telegram polling (если BOT_TOKEN задан)
     if bot:
         def polling():
             try:
                 print("Bot polling started...")
                 bot.infinity_polling(timeout=60, long_polling_timeout=60)
             except Exception as e:
-                print("Bot polling error", e)
+                print("Bot polling error:", e)
+
         tp = threading.Thread(target=polling, name="bot_poll", daemon=True)
         tp.start()
         print("Bot polling thread started.")
@@ -555,21 +552,20 @@ def start_threads():
 
 # ---------------- Основная точка входа ----------------
 if __name__ == "__main__":
-    # Запускаем планировщик в фоновом потоке
+    # Запускаем планировщик и Flask
     start_threads()
 
-    # Запускаем Flask на порту, заданном в окружении (Koyeb передаёт PORT)
+    # Flask на порту, который передаёт Koyeb (или 8000 по умолчанию)
     port = int(os.getenv("PORT", "8000"))
     print(f"Starting Flask on 0.0.0.0:{port}")
 
-    # Запускаем Flask в отдельном потоке
     from threading import Thread
     flask_thread = Thread(target=lambda: app.run(host="0.0.0.0", port=port))
     flask_thread.start()
 
     print("Flask started successfully on port", port)
 
-    # Держим процесс активным (чтобы Koyeb не останавливал контейнер)
+    # Держим процесс активным
     try:
         while True:
             time.sleep(60)
