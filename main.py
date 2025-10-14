@@ -478,55 +478,51 @@ def analyze_market_and_pick(universe=None, top_n=SEND_TOP_N):
     top = [c[1] for c in candidates[:top_n]]
     return top
 
-    # ---------------- Scheduler loop ----------------
+# --------------- Scheduler loop ----------------
 import time
+import pytz
 import traceback
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 import threading
 
-# Настройки для Молдовы (UTC+2)
-MD_OFFSET = +2  
-SEND_HOURS = list(range(7, 21))  # От 07:00 до 20:59
-CHECK_INTERVAL = 20  # Проверка каждые 20 секунд
+MOLDOVA_TZ = pytz.timezone("Europe/Chisinau")
+SEND_HOURS = list(range(7, 21))  # 07:00–20:00
+CHECK_INTERVAL = 30  # проверка каждые 30 секунд
 
 def scheduler_loop():
-    print("Scheduler loop started.")
+    print("📅 Планировщик FinAI запущен (07:00–20:00 по Молдове).")
     last_sent_hour = None
 
     while True:
         try:
-            # Определяем текущее время по Молдове
-            now_utc = datetime.utcnow().replace(tzinfo=timezone.utc)
-            now_md = now_utc.astimezone(timezone(timedelta(hours=MD_OFFSET)))
-            current_hour = now_md.hour
-            current_minute = now_md.minute
+            now_md = datetime.now(MOLDOVA_TZ)
+            hour = now_md.hour
+            minute = now_md.minute
 
-            print(f"[{now_md.strftime('%Y-%m-%d %H:%M:%S')}] Проверка времени...")
+            print(f"[{now_md.strftime('%H:%M:%S')}] Проверка времени...")
 
-            # Если наступил новый час в заданном диапазоне — отправляем сигнал
-            if current_hour in SEND_HOURS and current_minute == 0 and last_sent_hour != current_hour:
-                print(f"[{now_md.strftime('%Y-%m-%d %H:%M:%S')}] Генерация сигнала...")
+            if hour in SEND_HOURS and minute < 2 and last_sent_hour != hour:
+                print(f"⏰ [{now_md.strftime('%H:%M')}] Генерация сигналов...")
+                picks = analyze_market_and_pick()
 
-                picks = analyze_market_and_pick()  # Вызов твоей функции анализа
-                if not picks:
-                    print("Нет подходящих сигналов.")
-                else:
+                if picks:
+                    print(f"✅ Найдено {len(picks)} сигналов.")
                     for res in picks:
-                        send_signal_to_tg(res)  # Отправка сигнала в Telegram
+                        send_signal_to_telegram(res)
                         time.sleep(1)
+                else:
+                    print("⚠️ Нет подходящих сигналов.")
+                last_sent_hour = hour
 
-                last_sent_hour = current_hour
-
-            # Сброс после выхода из часа
-            if current_hour not in SEND_HOURS:
+            if hour not in SEND_HOURS:
                 last_sent_hour = None
 
             time.sleep(CHECK_INTERVAL)
 
         except Exception as e:
-            print("Ошибка в scheduler_loop:", e)
+            print("❌ Ошибка в планировщике:", e)
             traceback.print_exc()
-            time.sleep(10)
+            time.sleep(60)
 
 # ---------------- Запуск потоков и Flask ----------------
 def start_threads():
