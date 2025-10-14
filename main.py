@@ -451,12 +451,12 @@ def format_adv_message(res):
     return msg
 
     def send_signal_to_telegram(res, chat_id=CHAT_ID):
-    if not bot:
+        if not bot:
         print("Bot not configured - cannot send message")
         return
 
-    msg = format_adv_message(res)
-    try:
+        msg = format_adv_message(res)
+        try:
         # Отправляем сообщение тебе
         bot.send_message(chat_id, msg, parse_mode="HTML")
 
@@ -466,8 +466,8 @@ def format_adv_message(res):
         # Успешная отправка
         print(f"✅ Signal sent to {res['symbol']} → you ({chat_id}) and friend ({FRIEND_CHAT_ID})")
 
-    except Exception as e:
-        # Обработка ошибок
+        except Exception as e:
+        # Обработка ошибки
         print(f"❌ send_signal_to_telegram error for chat_id {chat_id}: {e}")
 
     btc = fetch_btc_trend()
