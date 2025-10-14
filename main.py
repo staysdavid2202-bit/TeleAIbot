@@ -530,7 +530,6 @@ def scheduler_loop():
 def start_threads():
     t = threading.Thread(target=scheduler_loop, name="scheduler", daemon=True)
     t.start()
-    print("Scheduler thread started.")
 
 
 # ----------------- Запуск потоков и Flask -------------------
