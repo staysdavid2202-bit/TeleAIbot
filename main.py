@@ -479,25 +479,34 @@ def analyze_market_and_pick(universe=None, top_n=SEND_TOP_N):
     return top
 
 # ----------------- Scheduler loop -------------------
+import time
+import traceback
+from datetime import datetime, timedelta, timezone
+import threading
+
+MD_OFFSET = +2
+SEND_HOURS = list(range(7, 21))
+CHECK_INTERVAL = 20
+
 def scheduler_loop():
     print("Scheduler loop started.")
     last_sent_hour = None
-    MD_OFFSET = +2  # смещение для MD времени (UTC+2)
-    SEND_HOURS = list(range(7, 21))  # 07:00 - 20:00
-
     while True:
         try:
             now_utc = datetime.utcnow().replace(tzinfo=timezone.utc)
             now_md = now_utc.astimezone(timezone(timedelta(hours=MD_OFFSET)))
             current_hour = now_md.hour
             current_minute = now_md.minute
+            print(f"[{now_md.strftime('%Y-%m-%d %H:%M:%S')}] Проверка...")
 
-            # Отправляем сигнал в начале часа (например 07:00, 08:00, ... 20:00)
-            if current_hour in SEND_HOURS and current_minute == 0 and last_sent_hour != current_hour:
+            if (
+                current_hour in SEND_HOURS
+                and 0 <= current_minute < 2
+                and last_sent_hour != current_hour
+            ):
                 print(f"[{now_md.strftime('%Y-%m-%d %H:%M:%S')}] Генерация сигнала...")
 
-                picks = analyze_market_and_pick()  # твой анализ рынка
-
+                picks = analyze_market_and_pick()
                 if not picks:
                     print("Нет подходящих сигналов.")
                 else:
@@ -507,16 +516,21 @@ def scheduler_loop():
 
                 last_sent_hour = current_hour
 
-            # Сбрасываем флаг после выхода из часа
             if current_hour not in SEND_HOURS:
                 last_sent_hour = None
 
-            time.sleep(30)
+            time.sleep(CHECK_INTERVAL)
 
         except Exception as e:
             print("Ошибка в scheduler_loop:", e)
             traceback.print_exc()
             time.sleep(10)
+
+def start_threads():
+    t = threading.Thread(target=scheduler_loop, name="scheduler", daemon=True)
+    t.start()
+    print("Scheduler thread started.")
+
 
 # ----------------- Запуск потоков и Flask -------------------
 def start_threads():
