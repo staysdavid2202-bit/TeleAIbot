@@ -478,15 +478,15 @@ def analyze_market_and_pick(universe=None, top_n=SEND_TOP_N):
     top = [c[1] for c in candidates[:top_n]]
     return top
 
-# ----------------- Scheduler loop -------------------
+# ---------------- Scheduler loop ----------------
 import time
 import traceback
 from datetime import datetime, timedelta, timezone
 import threading
 
-MD_OFFSET = +2
-SEND_HOURS = list(range(7, 21))
-CHECK_INTERVAL = 20
+MD_OFFSET = +2  # смещение для твоего часового пояса
+SEND_HOURS = list(range(7, 21))  # часы, когда бот будет отправлять сигналы (7:00–20:59)
+CHECK_INTERVAL = 20  # проверка каждые 20 секунд
 
 def scheduler_loop():
     print("Scheduler loop started.")
@@ -497,21 +497,22 @@ def scheduler_loop():
             now_md = now_utc.astimezone(timezone(timedelta(hours=MD_OFFSET)))
             current_hour = now_md.hour
             current_minute = now_md.minute
-            print(f"[{now_md.strftime('%Y-%m-%d %H:%M:%S')}] Проверка...")
+
+            print(f"[{now_md.strftime('%Y-%m-%d %H:%M:%S')}] Проверка времени...")
 
             if (
                 current_hour in SEND_HOURS
                 and 0 <= current_minute < 2
                 and last_sent_hour != current_hour
             ):
-                print(f"[{now_md.strftime('%Y-%m-%d %H:%M:%S')}] Генерация сигнала...")
+                print(f"[{now_md.strftime('%Y-%m-%d %H:%M:%S')}] Генерация сигналов...")
 
-                picks = analyze_market_and_pick()
+                picks = analyze_market_and_pick()  # твоя функция анализа рынка
                 if not picks:
                     print("Нет подходящих сигналов.")
                 else:
                     for res in picks:
-                        send_signal_to_tg(res)
+                        send_signal_to_tg(res)  # отправка сигнала в Telegram
                         time.sleep(1)
 
                 last_sent_hour = current_hour
