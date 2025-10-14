@@ -449,20 +449,17 @@ def format_adv_message(res):
     )
     return msg
 
-def send_signal_to_telegram(res):
+   def send_signal_to_telegram(res, chat_id=CHAT_ID):
     if not bot:
         print("Bot not configured — cannot send message")
         return
+
     msg = format_adv_message(res)
     try:
-        bot.send_message(CHAT_ID, msg, parse_mode="HTML")
-        print(f"Signal sent: {res['symbol']} {res['direction']} score:{res['score']}")
+        bot.send_message(chat_id, msg, parse_mode="HTML")
+        print(f"✅ Signal sent to {res['symbol']} → chat_id {chat_id}")
     except Exception as e:
-        print("send_signal_to_telegram error", e)
-
-# ----------------- Market scan and pick -------------------
-def analyze_market_and_pick(universe=None, top_n=SEND_TOP_N):
-    from btc_filter import fetch_btc_trend  # ✅ импорт внутри функции
+        print(f"❌ send_signal_to_telegram error for {chat_id}:", e)
 
     btc = fetch_btc_trend()
     print(f"🔍 Тренд BTC: {btc['trend']}, сила: {btc['strength']:.2f}, волатильность: {btc['volatility']}")
@@ -526,11 +523,37 @@ def scheduler_loop():
                 print(f"⏰ [{now_md.strftime('%H:%M')}] Генерация сигналов...")
                 picks = analyze_market_and_pick()
 
-                if picks:
+# --- Проверка тренда BTC перед анализом ---
+btc_trend = fetch_btc_trend()
+
+# Если тренд нейтральный или надёжность низкая — не отправляем сигналы
+if btc_trend["trend"] == "NEUTRAL" or btc_trend["reliability"] == "низкая":
+    print("⚠️ Сигналы пропущены — рынок неопределённый или тренд слабый.")
+    picks = []
+else:
+    filtered_picks = []
+    for res in picks:
+        if btc_trend["trend"] == "Восходящий" and res["trend"] == "short":
+            print(f"⚠️ Пропущен {res['symbol']} — BTC в восходящем тренде.")
+            continue
+        if btc_trend["trend"] == "Нисходящий" and res["trend"] == "long":
+            print(f"⚠️ Пропущен {res['symbol']} — BTC в нисходящем тренде.")
+            continue
+        filtered_picks.append(res)
+    picks = filtered_picks
+
+                 if picks:
                     print(f"✅ Найдено {len(picks)} сигналов.")
-                    for res in picks:
-                        send_signal_to_telegram(res)
-                        time.sleep(1)
+                    FRIEND_CHAT_ID = 5859602362  # <-- вставь сюда Telegram ID друга
+
+for res in picks:
+    # Отправляем тебе
+    send_signal_to_telegram(res)
+
+    # Отправляем другу
+    send_signal_to_telegram(res, chat_id=FRIEND_CHAT_ID)
+
+    time.sleep(1)
                 else:
                     print("⚠️ Нет подходящих сигналов.")
                 last_sent_hour = hour
