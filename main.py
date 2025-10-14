@@ -44,6 +44,7 @@ from flask import Flask, jsonify
 # ---- Настройки окружения ----
 BOT_TOKEN = os.getenv("BOT_TOKEN", "")
 CHAT_ID = os.getenv("CHAT_ID", "0")
+FRIEND_CHAT_ID = os.getenv("FRIEND_CHAT_ID", "0")
 BYBIT_API_KEY = os.getenv("BYBIT_API_KEY", "")
 BYBIT_API_SECRET = os.getenv("BYBIT_API_SECRET", "")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
@@ -449,17 +450,22 @@ def format_adv_message(res):
     )
     return msg
 
-   def send_signal_to_telegram(res, chat_id=CHAT_ID):
+    def send_signal_to_telegram(res, chat_id=CHAT_ID):
     if not bot:
-        print("Bot not configured — cannot send message")
+        print("Bot not configured – cannot send message")
         return
 
     msg = format_adv_message(res)
     try:
+        # Отправляем сообщение тебе
         bot.send_message(chat_id, msg, parse_mode="HTML")
-        print(f"✅ Signal sent to {res['symbol']} → chat_id {chat_id}")
+
+        # Отправляем сообщение другу
+        bot.send_message(FRIEND_CHAT_ID, msg, parse_mode="HTML")
+
+        print(f"✅ Signal sent to {res['symbol']} → chat_id {chat_id} and friend")
     except Exception as e:
-        print(f"❌ send_signal_to_telegram error for {chat_id}:", e)
+        print(f"❌ send_signal_to_telegram error for chat_id {chat_id}: {e}")
 
     btc = fetch_btc_trend()
     print(f"🔍 Тренд BTC: {btc['trend']}, сила: {btc['strength']:.2f}, волатильность: {btc['volatility']}")
