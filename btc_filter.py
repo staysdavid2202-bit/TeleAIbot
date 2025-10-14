@@ -5,6 +5,7 @@
 
 import requests
 import pandas as pd
+from indicators import macd, stoch_rsi, bollinger_bands
 import numpy as np
 from datetime import datetime
 
@@ -38,6 +39,26 @@ def rsi(series, n=14):
 # --- основной анализ BTC ---
 def fetch_btc_trend(interval="60", limit=200):
     """
+# --- Дополнительные индикаторы ---
+        macd_res = macd(df)
+        stoch_res = stoch_rsi(df)
+        boll_res = bollinger_bands(df)
+
+        # Согласуем общий тренд
+        подтверждения = 0
+        if macd_res["macd_trend"] == тенденция:
+            подтверждения += 1
+        if stoch_res["stoch_state"] in ["рост", "перекупленность"] and тенденция == "БЫЧИЙ":
+            подтверждения += 1
+        if stoch_res["stoch_state"] in ["падение", "перепроданность"] and тенденция == "МЕДВЕЖИЙ":
+            подтверждения += 1
+
+        если подтверждения >= 2:
+            надежность = "высокая"
+        elif подтверждения == 1:
+            надежность = "средняя"
+        else:
+            надежность = "низкая"    
     Возвращает состояние рынка BTC:
     - тренд: BULLISH / BEARISH / NEUTRAL
     - сила: от 0 до 1
@@ -55,7 +76,10 @@ def fetch_btc_trend(interval="60", limit=200):
 
         if not j or not j.get("result"):
             return {"trend": "NEUTRAL", "strength": 0, "rsi_state": "normal", "volatility": "medium"}
-
+    "macd": macd_res,
+        "stoch_rsi": stoch_res,
+        "bollinger": boll_res,
+        "надёжность": надежность,
         data = j["result"]["list"]
         df = pd.DataFrame([
             {"ts": int(c[0]), "open": float(c[1]), "high": float(c[2]),
