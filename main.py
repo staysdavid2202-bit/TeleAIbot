@@ -71,6 +71,7 @@ OB_IMBALANCE_THRESHOLD = 0.06
 SCORE_THRESHOLD = 72
 MIN_RR = 3.0
 MAX_CANDIDATES = 6
+TOP_N = 3
 SEND_TOP_N = 2
 DATA_DIR = "/tmp/finai_adv"
 os.makedirs(DATA_DIR, exist_ok=True)
