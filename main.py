@@ -559,11 +559,15 @@ def scheduler_loop():
                     FRIEND_CHAT_ID = 5859602362  # <-- вставь сюда Telegram ID друга
 
                     for res in picks:
-                        # Отправляем тебе
-                        send_signal_to_telegram(res)
+                        symbol = res.get("symbol", "UNKNOWN")
 
-                        # Отправляем другу
-                        send_signal_to_telegram(res, chat_id=FRIEND_CHAT_ID)
+                        if should_send_signal(symbol, res):
+                            # Отправляем тебе
+                            send_signal_to_telegram(res)
+                            # Отправляем другу
+                            send_signal_to_telegram(res, chat_id=FRIEND_CHAT_ID)
+                        else:
+                            print(f"⚠️ Пропускаем повторный сигнал для {symbol}")
 
                         time.sleep(1)
                 else:
@@ -579,6 +583,44 @@ def scheduler_loop():
             print("❌ Ошибка в планировщике:", e)
             traceback.print_exc()
             time.sleep(60)
+# ------------------- Антидубликат сигналов -------------------
+last_signals = {}
+last_sent_time = {}
+
+# Порог изменения цены (например, 1%)
+PRICE_CHANGE_THRESHOLD = 0.01  # 1%
+# Минимальный интервал между одинаковыми сигналами (в секундах)
+MIN_SIGNAL_INTERVAL = 3600  # 1 час
+
+def should_send_signal(symbol, signal_data):
+    """
+    Проверяем, стоит ли отправлять новый сигнал, чтобы не было дубликатов.
+    """
+    now = time.time()
+    key = f"{symbol}_{signal_data.get('direction', '')}"
+
+    prev_signal = last_signals.get(key)
+    last_time = last_sent_time.get(key, 0)
+
+    # Проверка интервала времени
+    if now - last_time < MIN_SIGNAL_INTERVAL:
+        print(f"⏳ Сигнал {symbol} недавно уже отправлялся ({int((now - last_time)/60)} мин назад). Пропускаем.")
+        return False
+
+    # Проверка различий в цене входа
+    if prev_signal:
+        prev_price = prev_signal.get("entry_price")
+        new_price = signal_data.get("entry_price")
+        if prev_price and new_price:
+            diff = abs(new_price - prev_price) / prev_price
+            if diff < PRICE_CHANGE_THRESHOLD:
+                print(f"⚠️ Сигнал по {symbol} изменился меньше чем на {PRICE_CHANGE_THRESHOLD*100:.1f}%, пропускаем.")
+                return False
+
+    # Если всё ок — обновляем запись
+    last_signals[key] = signal_data
+    last_sent_time[key] = now
+    return True
 
 # --------------- Запуск потоков и Flask ----------------
 def start_threads():
