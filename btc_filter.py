@@ -110,7 +110,7 @@ def fetch_btc_trend(interval="60", limit=200):
 
         if not j or not j.get("result"):
             return {"trend": "NEUTRAL", "strength": 0, "rsi_state": "normal", "volatility": "medium"}
-    "macd": macd_res,
+        "macd": macd_res,
         "stoch_rsi": stoch_res,
         "bollinger": boll_res,
         "надёжность": надежность,
