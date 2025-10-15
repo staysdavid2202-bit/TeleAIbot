@@ -432,7 +432,7 @@ def decide_for_symbol(f):
 
 # ----------------- Format & send -------------------
 def format_adv_message(res):
-    emoji = "🟢" if res['direction']=="LONG" else "🔴"
+    emoji = "🟢" if res['direction'] == "LONG" else "🔴"
     msg = (
         f"📈 <b>FinAI — Advanced Signal</b>\n"
         f"━━━━━━━━━━━━━━━━━━━━━━\n"
@@ -450,13 +450,14 @@ def format_adv_message(res):
     )
     return msg
 
-    def send_signal_to_telegram(res, chat_id=CHAT_ID):
-        if not bot:
+
+def send_signal_to_telegram(res, chat_id=CHAT_ID):
+    if not bot:
         print("Bot not configured - cannot send message")
         return
 
-        msg = format_adv_message(res)
-        try:
+    msg = format_adv_message(res)
+    try:
         # Отправляем сообщение тебе
         bot.send_message(chat_id, msg, parse_mode="HTML")
 
@@ -466,17 +467,18 @@ def format_adv_message(res):
         # Успешная отправка
         print(f"✅ Signal sent to {res['symbol']} → you ({chat_id}) and friend ({FRIEND_CHAT_ID})")
 
-        except Exception as e:
+    except Exception as e:
         # Обработка ошибки
         print(f"❌ send_signal_to_telegram error for chat_id {chat_id}: {e}")
 
-    btc = fetch_btc_trend()
-    print(f"🔍 Тренд BTC: {btc['trend']}, сила: {btc['strength']:.2f}, волатильность: {btc['volatility']}")
 
-    # Проверка силы и волатильности до анализа
-    if btc["strength"] < 0.15 or btc["volatility"] == "high":
-        print("⚠️ Рынок BTC слабый или слишком волатильный — анализ остановлен.")
-        return []
+btc = fetch_btc_trend()
+print(f"🔍 Тренд BTC: {btc['trend']}, сила: {btc['strength']:.2f}, волатильность: {btc['volatility']}")
+
+# Проверка силы и волатильности до анализа
+if btc["strength"] < 0.15 or btc["volatility"] == "high":
+    print("⚠️ Рынок BTC слабый или слишком волатильный — анализ остановлен.")
+    return []
 
     universe = universe or fetch_symbols_usdt()
     candidates = []
