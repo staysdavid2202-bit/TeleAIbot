@@ -470,43 +470,42 @@ def send_signal_to_telegram(res, chat_id=CHAT_ID):
         # Обработка ошибки
         print(f"❌ send_signal_to_telegram error for chat_id {chat_id}: {e}")
 
+def analyze_market_and_pick(universe=None):
+    btc = fetch_btc_trend()
+    print(f"🔍 Тренд BTC: {btc['trend']}, сила: {btc['strength']:.2f}, волатильность: {btc['volatility']}")
 
-# ----------------- BTC Trend check -----------------
-btc = fetch_btc_trend()
-print(f"🔍 Тренд BTC: {btc['trend']}, сила: {btc['strength']:.2f}, волатильность: {btc['volatility']}")
+    # Проверка силы и волатильности до анализа
+    if btc["strength"] < 0.15 or btc["volatility"] == "high":
+        print("⚠️ Рынок BTC слабый или слишком волатильный — анализ остановлен.")
+        return []  # ← теперь внутри функции ✅
 
-# Проверка силы и волатильности до анализа
-if btc["strength"] < 0.15 or btc["volatility"] == "high":
-    print("⚠️ Рынок BTC слабый или слишком волатильный — анализ остановлен.")
-    return []
+    universe = universe or fetch_symbols_usdt()
+    candidates = []
+    sample = universe[:MAX_CANDIDATES * 6]
 
-universe = universe or fetch_symbols_usdt()
-candidates = []
-sample = universe[:MAX_CANDIDATES * 6]
+    for symbol in sample:
+        f = build_advanced_features(symbol)
+        if not f:
+            continue
 
-for symbol in sample:
-    f = build_advanced_features(symbol)
-    if not f:
-        continue
+        res = decide_for_symbol(f)
+        if not res:
+            continue
 
-    res = decide_for_symbol(f)
-    if not res:
-        continue
+        # Проверка на противоречие тренду BTC
+        if (btc["trend"] == "BULLISH" and res["direction"] == "SHORT") or \
+           (btc["trend"] == "BEARISH" and res["direction"] == "LONG"):
+            print(f"⚠️ {res['symbol']} отклонён — против тренда BTC ({btc['trend']})")
+            continue
 
-    # Проверка на противоречие тренду BTC
-    if (btc["trend"] == "BULLISH" and res["direction"] == "SHORT") or \
-       (btc["trend"] == "BEARISH" and res["direction"] == "LONG"):
-        print(f"⚠️ {res['symbol']} отклонён — против тренда BTC ({btc['trend']})")
-        continue
+        # Добавляем результат, если всё ок
+        est = res["score"] * (res.get("rr3", 0) or 1)
+        candidates.append((est, res))
 
-    # Добавляем результат, если всё ок
-    est = res["score"] * (res.get("rr3", 0) or 1)
-    candidates.append((est, res))
-
-# Сортировка и выбор лучших
-candidates.sort(key=lambda x: x[0], reverse=True)
-top = [c[1] for c in candidates[:TOP_N]]
-return top
+    # Сортировка и выбор лучших
+    candidates.sort(key=lambda x: x[0], reverse=True)
+    top = [c[1] for c in candidates[:TOP_N]]
+    return top
 
 # --------------- Scheduler loop ----------------
 import time
