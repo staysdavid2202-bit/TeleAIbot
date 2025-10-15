@@ -580,12 +580,21 @@ def scheduler_loop():
             traceback.print_exc()
             time.sleep(60)
 
-# ---------------- Запуск потоков и Flask ----------------
+# --------------- Запуск потоков и Flask ----------------
 def start_threads():
-    # Поток для планировщика
+    # 🚀 Тестовый запуск: генерация сигнала при старте
+    print("🚀 Тестовый запуск: генерация сигнала при старте...")
+    try:
+        btc_trend = get_btc_trend()
+        send_signal_to_channel(btc_trend)
+        print("✅ Тестовый сигнал успешно отправлен!")
+    except Exception as e:
+        print(f"⚠️ Ошибка при тестовой генерации сигнала: {e}")
+
+    # 🧭 Поток для планировщика
     t = threading.Thread(target=scheduler_loop, name="scheduler", daemon=True)
     t.start()
-    print("Scheduler thread started.")
+    print("🟢 Scheduler thread started.")
 
     # Настройка webhook для Telegram (вместо polling)
 if bot:
