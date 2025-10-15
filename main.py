@@ -539,7 +539,7 @@ def scheduler_loop():
                 btc_trend = fetch_btc_trend()
 
                 # Если тренд нейтральный или надёжность низкая — не отправляем сигналы
-                if btc_trend["trend"] == "NEUTRAL" or btc_trend["reliability"] == "низкая":
+                if btc_trend.get("trend") == "NEUTRAL" or btc_trend.get("reliability") == "низкая":
                     print("⚠️ Сигналы пропущены — рынок неопределённый или тренд слабый.")
                     picks = []
                 else:
