@@ -68,23 +68,23 @@ def fetch_btc_trend(interval="60", limit=200):
         stoch_res = stoch_rsi(df)
         boll_res = bollinger_bands(df)
 
-        # --- Определение надёжности сигнала ---
-        подтверждения = 0
-        if macd_res["macd_trend"] == "текущая_тенденция":
-            подтверждения += 1
-        if stoch_res["stoch_state"] in ["рост", "перекупленность"] and macd_res["macd_trend"] == "БЫЧИЙ":
-            подтверждения += 1
-        if stoch_res["stoch_state"] in ["падение", "перепроданность"] and macd_res["macd_trend"] == "МЕДВЕЖИЙ":
-            подтверждения += 1
+# --- Определение надёжности сигнала ---
+    подтверждения = 0
+    if macd_res["macd_trend"] == "текущая_тенденция":
+        подтверждения += 1
+    if stoch_res["stoch_state"] in ["рост", "перекупленность"] and macd_res["macd_trend"] == "БЫЧИЙ":
+        подтверждения += 1
+    if stoch_res["stoch_state"] in ["падение", "перепроданность"] and macd_res["macd_trend"] == "МЕДВЕЖИЙ":
+        подтверждения += 1
 
-        if подтверждения >= 2:
-            надёжность = "высокая"
-        elif подтверждения == 1:
-            надёжность = "средняя"
-        else:
-            надёжность = "низкая"
+    if подтверждения >= 2:
+        надёжность = "высокая"
+    elif подтверждения == 1:
+        надёжность = "средняя"
+    else:
+        надёжность = "низкая"
 
-        # --- Возвращаем результат ---
+    # --- Возвращаем результат ---
     return {
         "trend": macd_res["macd_trend"],
         "strength": macd_res["strength"],
@@ -96,9 +96,9 @@ def fetch_btc_trend(interval="60", limit=200):
         "reliability": надёжность
     }
 
-except Exception as e:
-    print("Ошибка в btc_filter:", e)
-    return {"trend": "NEUTRAL", "strength": 0}
+    except Exception as e:
+        print("Ошибка в btc_filter:", e)
+        return {"trend": "NEUTRAL", "strength": 0}
 
 try:
     j = safe_get(BYBIT_KLINE, params={
