@@ -535,37 +535,37 @@ def scheduler_loop():
                 print(f"⏰ [{now_md.strftime('%H:%M')}] Генерация сигналов...")
                 picks = analyze_market_and_pick()
 
-# --- Проверка тренда BTC перед анализом ---
-btc_trend = fetch_btc_trend()
+                # --- Проверка тренда BTC перед анализом ---
+                btc_trend = fetch_btc_trend()
 
-# Если тренд нейтральный или надёжность низкая — не отправляем сигналы
-if btc_trend["trend"] == "NEUTRAL" or btc_trend["reliability"] == "низкая":
-    print("⚠️ Сигналы пропущены — рынок неопределённый или тренд слабый.")
-    picks = []
-else:
-    filtered_picks = []
-    for res in picks:
-        if btc_trend["trend"] == "Восходящий" and res["trend"] == "short":
-            print(f"⚠️ Пропущен {res['symbol']} — BTC в восходящем тренде.")
-            continue
-        if btc_trend["trend"] == "Нисходящий" and res["trend"] == "long":
-            print(f"⚠️ Пропущен {res['symbol']} — BTC в нисходящем тренде.")
-            continue
-        filtered_picks.append(res)
-    picks = filtered_picks
+                # Если тренд нейтральный или надёжность низкая — не отправляем сигналы
+                if btc_trend["trend"] == "NEUTRAL" or btc_trend["reliability"] == "низкая":
+                    print("⚠️ Сигналы пропущены — рынок неопределённый или тренд слабый.")
+                    picks = []
+                else:
+                    filtered_picks = []
+                    for res in picks:
+                        if btc_trend["trend"] == "Восходящий" and res["trend"] == "short":
+                            print(f"⚠️ Пропущен {res['symbol']} — BTC в восходящем тренде.")
+                            continue
+                        if btc_trend["trend"] == "Нисходящий" and res["trend"] == "long":
+                            print(f"⚠️ Пропущен {res['symbol']} — BTC в нисходящем тренде.")
+                            continue
+                        filtered_picks.append(res)
+                    picks = filtered_picks
 
-                 if picks:
+                if picks:
                     print(f"✅ Найдено {len(picks)} сигналов.")
                     FRIEND_CHAT_ID = 5859602362  # <-- вставь сюда Telegram ID друга
 
-for res in picks:
-    # Отправляем тебе
-    send_signal_to_telegram(res)
+                    for res in picks:
+                        # Отправляем тебе
+                        send_signal_to_telegram(res)
 
-    # Отправляем другу
-    send_signal_to_telegram(res, chat_id=FRIEND_CHAT_ID)
+                        # Отправляем другу
+                        send_signal_to_telegram(res, chat_id=FRIEND_CHAT_ID)
 
-    time.sleep(1)
+                        time.sleep(1)
                 else:
                     print("⚠️ Нет подходящих сигналов.")
                 last_sent_hour = hour
