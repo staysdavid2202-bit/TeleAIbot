@@ -109,11 +109,16 @@ def fetch_btc_trend(interval="60", limit=200):
         })
 
         if not j or not j.get("result"):
-            return {"trend": "NEUTRAL", "strength": 0, "rsi_state": "normal", "volatility": "medium"}
-        "macd": macd_res,
-        "stoch_rsi": stoch_res,
-        "bollinger": boll_res,
-        "надёжность": надежность,
+    return {
+        "trend": "NEUTRAL",
+        "strength": 0,
+        "rsi_state": "normal",
+        "volatility": "medium",
+        "macd": None,
+        "stoch_rsi": None,
+        "bollinger": None,
+        "надежность": "низкая"
+    }
         data = j["result"]["list"]
         df = pd.DataFrame([
             {"ts": int(c[0]), "open": float(c[1]), "high": float(c[2]),
