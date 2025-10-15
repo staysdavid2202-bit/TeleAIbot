@@ -587,20 +587,22 @@ def start_threads():
     t.start()
     print("Scheduler thread started.")
 
-    # Поток для Telegram polling (если BOT_TOKEN задан)
-    if bot:
-        def polling():
-            try:
-                print("Bot polling started...")
-                bot.infinity_polling(timeout=60, long_polling_timeout=60)
-            except Exception as e:
-                print("Bot polling error:", e)
+    # Настройка webhook для Telegram (вместо polling)
+if bot:
+    import requests
 
-        tp = threading.Thread(target=polling, name="bot_poll", daemon=True)
-        tp.start()
-        print("Bot polling thread started.")
-    else:
-        print("Bot not configured; skipping polling thread.")
+    WEBHOOK_HOST = "https://" + os.getenv("KOYEB_APP_NAME") + ".koyeb.app"
+    WEBHOOK_URL = f"{WEBHOOK_HOST}/{BOT_TOKEN}"
+
+    try:
+        bot.remove_webhook()
+        time.sleep(1)
+        bot.set_webhook(url=WEBHOOK_URL)
+        print(f"✅ Webhook установлен: {WEBHOOK_URL}")
+    except Exception as e:
+        print("❌ Ошибка при установке webhook:", e)
+else:
+    print("⚠️ Bot not configured; skipping webhook setup.")
 
 # ---------------- Основная точка входа ----------------
 if __name__ == "__main__":
