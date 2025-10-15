@@ -85,46 +85,52 @@ def fetch_btc_trend(interval="60", limit=200):
             надёжность = "низкая"
 
         # --- Возвращаем результат ---
+    return {
+        "trend": macd_res["macd_trend"],
+        "strength": macd_res["strength"],
+        "rsi_state": stoch_res["stoch_state"],
+        "volatility": boll_res["volatility"],
+        "macd": macd_res,
+        "stoch_rsi": stoch_res,
+        "bollinger": boll_res,
+        "reliability": надёжность
+    }
+
+except Exception as e:
+    print("Ошибка в btc_filter:", e)
+    return {"trend": "NEUTRAL", "strength": 0}
+
+try:
+    j = safe_get(BYBIT_KLINE, params={
+        "category": "linear",
+        "symbol": "BTCUSDT",
+        "interval": interval,
+        "limit": limit
+    })
+
+    if not j or not j.get("result"):
         return {
-            "trend": macd_res["macd_trend"],
-            "strength": macd_res["strength"],
-            "rsi_state": stoch_res["stoch_state"],
-            "volatility": boll_res["volatility"],
-            "macd": macd_res,
-            "stoch_rsi": stoch_res,
-            "bollinger": boll_res,
-            "reliability": надёжность
+            "trend": "NEUTRAL",
+            "strength": 0,
+            "rsi_state": "normal",
+            "volatility": "medium",
+            "macd": None,
+            "stoch_rsi": None,
+            "bollinger": None,
+            "надёжность": "низкая"
         }
 
-    except Exception as e:
-        print("Ошибка в btc_filter:", e)
-        return {"trend": "NEUTRAL", "strength": 0}
-
-    try:
-        j = safe_get(BYBIT_KLINE, params={
-            "category": "linear",
-            "symbol": "BTCUSDT",
-            "interval": interval,
-            "limit": limit
-        })
-
-        if not j or not j.get("result"):
-    return {
-        "trend": "NEUTRAL",
-        "strength": 0,
-        "rsi_state": "normal",
-        "volatility": "medium",
-        "macd": None,
-        "stoch_rsi": None,
-        "bollinger": None,
-        "надежность": "низкая"
-    }
-        data = j["result"]["list"]
-        df = pd.DataFrame([
-            {"ts": int(c[0]), "open": float(c[1]), "high": float(c[2]),
-             "low": float(c[3]), "close": float(c[4])}
-            for c in data[::-1]
-        ])
+    data = j["result"]["list"]
+    df = pd.DataFrame([
+        {
+            "ts": int(c[0]),
+            "open": float(c[1]),
+            "high": float(c[2]),
+            "low": float(c[3]),
+            "close": float(c[4])
+        }
+        for c in data[::-1]
+    ])
 
         # --- EMA анализ ---
         df["ema20"] = ema(df["close"], 20)
