@@ -545,13 +545,13 @@ def analyze_market_and_pick(universe=None):
             continue
 
         # Добавляем результат, если всё ок
-est = res["score"] * (res.get("rr3", 0) or 1)
-candidates.append((est, res))
+        est = res["score"] * (res.get("rr3", 0) or 1)
+        candidates.append((est, res))
 
-# Сортировка и выбор лучших
-candidates.sort(key=lambda x: x[0], reverse=True)
-top = [c[1] for c in candidates[:TOP_N]]
-return top
+        # Сортировка и выбор лучших
+        candidates.sort(key=lambda x: x[0], reverse=True)
+        top = [c[1] for c in candidates[:TOP_N]]
+        return top
 
 
 # --------------- Scheduler loop ----------------
