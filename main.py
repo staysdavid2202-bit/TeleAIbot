@@ -503,7 +503,7 @@ def analyze_market_and_pick(universe=None):
 # Проверка силы и волатильности до анализа
 if btc["strength"] < 0.15 or btc["volatility"] == "high":
     print("⚠️ Рынок BTC слабый или слишком волатильный — анализ остановлен.")
-    return []  # теперь внутри функции ✅
+        return []  # теперь внутри функции ✅
 
 universe = universe or fetch_symbols_usdt()
 candidates = []
