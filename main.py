@@ -545,4 +545,177 @@ def analyze_market_and_pick(universe=None):
             continue
 
         # Добавляем результат, если всё ок
-        est = res["score"] * (res.
+est = res["score"] * (res.get("rr3", 0) or 1)
+candidates.append((est, res))
+
+# Сортировка и выбор лучших
+candidates.sort(key=lambda x: x[0], reverse=True)
+top = [c[1] for c in candidates[:TOP_N]]
+return top
+
+
+# --------------- Scheduler loop ----------------
+import time
+import pytz
+import traceback
+from datetime import datetime
+import threading
+
+MOLDOVA_TZ = pytz.timezone("Europe/Chisinau")
+SEND_HOURS = list(range(7, 21))  # 07:00–20:00
+CHECK_INTERVAL = 30  # проверка каждые 30 секунд
+
+
+def scheduler_loop():
+    print("📅 Планировщик FinAI запущен (07:00–20:00 по Молдове).")
+    last_sent_hour = None
+
+    while True:
+        try:
+            now_md = datetime.now(MOLDOVA_TZ)
+            hour = now_md.hour
+            minute = now_md.minute
+
+            print(f"[{now_md.strftime('%H:%M:%S')}] Проверка времени...")
+
+            if hour in SEND_HOURS and minute < 2 and last_sent_hour != hour:
+                print(f"⏰ [{now_md.strftime('%H:%M')}] Генерация сигналов...")
+                picks = analyze_market_and_pick()
+
+                # --- Проверка тренда BTC перед анализом ---
+                btc_trend = fetch_btc_trend()
+
+                # Если тренд нейтральный или надёжность низкая — не отправляем сигналы
+                if btc_trend.get("trend") == "NEUTRAL" or btc_trend.get("reliability") == "низкая":
+                    print("⚠️ Сигналы пропущены — рынок неопределённый или тренд слабый.")
+                    picks = []
+                else:
+                    filtered_picks = []
+                    for res in picks:
+                        if btc_trend["trend"] == "Восходящий" and res["trend"] == "short":
+                            print(f"⚠️ Пропущен {res['symbol']} — BTC в восходящем тренде.")
+                            continue
+                        if btc_trend["trend"] == "Нисходящий" and res["trend"] == "long":
+                            print(f"⚠️ Пропущен {res['symbol']} — BTC в нисходящем тренде.")
+                            continue
+                        filtered_picks.append(res)
+                    picks = filtered_picks
+
+                if picks:
+                    print(f"✅ Найдено {len(picks)} сигналов.")
+                    FRIEND_CHAT_ID = 5859602362  # <-- вставь сюда Telegram ID друга
+
+                    for res in picks:
+                        symbol = res.get("symbol", "UNKNOWN")
+
+                        if should_send_signal(symbol, res):
+                            # Отправляем тебе
+                            send_signal_to_telegram(res)
+                            # Отправляем другу
+                            send_signal_to_telegram(res, chat_id=FRIEND_CHAT_ID)
+                        else:
+                            print(f"⚠️ Пропускаем повторный сигнал для {symbol}")
+
+                        time.sleep(1)
+                else:
+                    print("⚠️ Нет подходящих сигналов.")
+                last_sent_hour = hour
+
+            if hour not in SEND_HOURS:
+                last_sent_hour = None
+
+            time.sleep(CHECK_INTERVAL)
+
+        except Exception as e:
+            print("❌ Ошибка в планировщике:", e)
+            traceback.print_exc()
+            time.sleep(60)
+
+
+# ------------------- Антидубликат сигналов -------------------
+last_signals = {}
+last_sent_time = {}
+
+# Порог изменения цены (например, 1%)
+PRICE_CHANGE_THRESHOLD = 0.01  # 1%
+# Минимальный интервал между одинаковыми сигналами (в секундах)
+MIN_SIGNAL_INTERVAL = 3600  # 1 час
+
+
+def should_send_signal(symbol, signal_data):
+    """
+    Проверяем, стоит ли отправлять новый сигнал, чтобы не было дубликатов.
+    """
+    now = time.time()
+    key = f"{symbol}_{signal_data.get('direction', '')}"
+
+    prev_signal = last_signals.get(key)
+    last_time = last_sent_time.get(key, 0)
+
+    # Проверка интервала времени
+    if now - last_time < MIN_SIGNAL_INTERVAL:
+        print(f"⏳ Сигнал {symbol} недавно уже отправлялся ({int((now - last_time)/60)} мин назад). Пропускаем.")
+        return False
+
+    # Проверка различий в цене входа
+    if prev_signal:
+        prev_price = prev_signal.get("entry_price")
+        new_price = signal_data.get("entry_price")
+        if prev_price and new_price:
+            diff = abs(new_price - prev_price) / prev_price
+            if diff < PRICE_CHANGE_THRESHOLD:
+                print(f"⚠️ Сигнал по {symbol} изменился меньше чем на {PRICE_CHANGE_THRESHOLD*100:.1f}%, пропускаем.")
+                return False
+
+    # Если всё ок — обновляем запись
+    last_signals[key] = signal_data
+    last_sent_time[key] = now
+    return True
+
+
+# --------------- Запуск потоков и Flask ----------------
+def start_threads():
+    # 🧭 Поток для планировщика
+    t = threading.Thread(target=scheduler_loop, name="scheduler", daemon=True)
+    t.start()
+    print("🟢 Scheduler thread started.")
+
+    # Настройка webhook для Telegram (вместо polling)
+    if bot:
+        import requests
+
+        WEBHOOK_HOST = "https://" + os.getenv("KOYEB_APP_NAME") + ".koyeb.app"
+        WEBHOOK_URL = f"{WEBHOOK_HOST}/{BOT_TOKEN}"
+
+        try:
+            bot.remove_webhook()
+            time.sleep(1)
+            bot.set_webhook(url=WEBHOOK_URL)
+            print(f"✅ Webhook установлен: {WEBHOOK_URL}")
+        except Exception as e:
+            print("❌ Ошибка при установке webhook:", e)
+    else:
+        print("⚠️ Bot not configured; skipping webhook setup.")
+
+
+# ---------------- Основная точка входа ----------------
+if __name__ == "__main__":
+    # Запускаем планировщик и Flask
+    start_threads()
+
+    # Flask на порту, который передаёт Koyeb (или 8000 по умолчанию)
+    port = int(os.getenv("PORT", "8000"))
+    print(f"Starting Flask on 0.0.0.0:{port}")
+
+    from threading import Thread
+    flask_thread = Thread(target=lambda: app.run(host="0.0.0.0", port=port))
+    flask_thread.start()
+
+    print("Flask started successfully on port", port)
+
+    # Держим процесс активным
+    try:
+        while True:
+            time.sleep(60)
+    except KeyboardInterrupt:
+        print("Bot stopped manually")
