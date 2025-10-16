@@ -554,7 +554,7 @@ for symbol in sample:
     est = res["score"] * (res.get("rr3", 0) or 1)
     candidates.append((est, res))
 
-    # Сортировка и выбор лучших
+        # Сортировка и выбор лучших
         candidates.sort(key=lambda x: x[0], reverse=True)
         top = [c[1] for c in candidates[:TOP_N]]
         return top
