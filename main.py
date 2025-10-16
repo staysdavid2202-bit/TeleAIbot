@@ -498,7 +498,7 @@ def send_signal_to_telegram(res, chat_id=CHAT_ID):
 
 def analyze_market_and_pick(universe=None):
     btc = fetch_btc_trend()
-print(f"📊 Тренд BTC: {btc['trend']}, сила: {btc['strength']:.2f}, волатильность: {btc['volatility']}")
+    print(f"📊 Тренд BTC: {btc['trend']}, сила: {btc['strength']:.2f}, волатильность: {btc['volatility']}")
 
 # Проверка силы и волатильности до анализа
 if btc["strength"] < 0.15 or btc["volatility"] == "high":
