@@ -1,51 +1,37 @@
 # -*- coding: utf-8 -*-
 """
 FinAI combined main.py
-Объединяет: телеграм-бот + расширенная аналитика (multi-TF, orderbook, order-block, scoring)
-Сделано для деплоя на Koyeb: есть Flask health endpoint и безопасный запуск потоков.
-Требования: установить пакеты из requirements.txt
-Перед запуском: установить переменные окружения BOT_TOKEN, CHAT_ID, BYBIT_API_KEY, BYBIT_API_SECRET, OPENAI_API_KEY (если нужно)
+(объединённый и исправленный вариант)
 """
-
 import os
 import time
 import math
 import threading
 import traceback
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import requests
 import json
+import matplotlib.pyplot as plt
+import pandas as pd
+
+# дополнительные импорты
+import numpy as np
+import pytz
+
+# Импорты модулей (в проекте)
 from btc_filter import fetch_btc_trend
 from trend_filter import get_weekly_trend
 from filters import should_trade
-from send_to_telegram import send_signal_to_telegram
-import matplotlib.pyplot as plt
-import pandas as pd
-import io
-from datetime import datetime, timezone, timedelta
+from send_to_telegram import send_signal_to_telegram  # если есть, иначе используем локальную отправку
 
-# Попробуем импортировать numpy/pandas, если нет — поймать ошибку и дать подсказку (Koyeb должен установить requirements)
-try:
-    import numpy as np
-    import pandas as pd
-except Exception as e:
-    print("Ошибка импорта numpy/pandas. Убедитесь, что они указаны в requirements.txt и установлены.")
-    raise
-
-# Telegram
+# Telebot
 try:
     import telebot
 except Exception as e:
     print("Ошибка импорта telebot. Установите pyTelegramBotAPI в requirements.")
     raise
 
-# APScheduler для планировщика (опционально, используем бэкап потока)
-try:
-    from apscheduler.schedulers.background import BackgroundScheduler
-except Exception:
-    BackgroundScheduler = None
-
-# Flask для health check (Koyeb)
+# Flask
 from flask import Flask, jsonify
 
 # ---- Настройки окружения ----
@@ -56,20 +42,24 @@ BYBIT_API_KEY = os.getenv("BYBIT_API_KEY", "")
 BYBIT_API_SECRET = os.getenv("BYBIT_API_SECRET", "")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 
-# Если CHAT_ID передан как строка — попробуем преобразовать
 try:
     CHAT_ID = int(CHAT_ID)
 except Exception:
     CHAT_ID = 0
 
-# Константы Bybit public endpoints
+try:
+    FRIEND_CHAT_ID = int(FRIEND_CHAT_ID)
+except Exception:
+    FRIEND_CHAT_ID = 0
+
+# Bybit endpoints
 BYBIT_KLINE = "https://api.bybit.com/v5/market/kline"
 BYBIT_INSTRUMENTS = "https://api.bybit.com/v5/market/instruments-info"
 BYBIT_ORDERBOOK = "https://api.bybit.com/v5/market/orderbook"
 BYBIT_TICKER = "https://api.bybit.com/v5/market/tickers"
 BYBIT_FUNDING = "https://api.bybit.com/v5/market/funding/prev-funding-rate"
 
-# Параметры стратегии (настраиваемые)
+# Strategy params
 TFS = {"M15":"15", "H1":"60", "H4":"240", "D1":"D"}
 KLINE_LIMIT = 300
 MIN_ADX = 18
@@ -83,15 +73,10 @@ SEND_TOP_N = 2
 DATA_DIR = "/tmp/finai_adv"
 os.makedirs(DATA_DIR, exist_ok=True)
 
-# Планировщик: часы отправки (UTC)
 SEND_TIMES = ["08:00","14:00","20:00"]
 
-# Инициализация бота
-if not BOT_TOKEN:
-    print("Внимание: BOT_TOKEN не задан. Бот не сможет отправлять сообщения.")
 bot = telebot.TeleBot(BOT_TOKEN) if BOT_TOKEN else None
 
-# Flask приложение для healthcheck
 app = Flask(__name__)
 
 @app.route("/")
@@ -100,7 +85,6 @@ def index():
 
 @app.route("/health")
 def health():
-    # можно добавить дополнительные проверки (доступ к Bybit, состояние потоков)
     return jsonify({"status":"ok","time": datetime.utcnow().isoformat()})
 
 # ----------------- HTTP safe get -----------------
@@ -110,18 +94,15 @@ def safe_get(url, params=None, timeout=12):
         r.raise_for_status()
         return r.json()
     except Exception as e:
-        # логируем, но не бросаем
         print(f"HTTP GET error: {url} params:{params} -> {repr(e)}")
         return {}
 
 # -------------- Market helpers -------------------
 def fetch_symbols_usdt():
-    # Возвращает список символов USD-маркета
     try:
         j = safe_get(BYBIT_INSTRUMENTS, params={"category":"linear"})
         lst = j.get("result", {}).get("list", [])
         syms = [x["symbol"] for x in lst if x.get("quoteCoin")=="USDT" and x.get("status")=="Trading"]
-        # если пусто — fallback
         if not syms:
             return ["BTCUSDT","ETHUSDT","SOLUSDT","XRPUSDT","BNBUSDT"]
         return syms
@@ -136,7 +117,6 @@ def fetch_klines(symbol, interval="60", limit=200):
         arr = j.get("result", {}).get("list", [])
         if not arr:
             return pd.DataFrame()
-        # Bybit returns newest first, мы хотим хронологию
         df = pd.DataFrame([
             {"ts": int(c[0]), "open": float(c[1]), "high": float(c[2]),
              "low": float(c[3]), "close": float(c[4]), "vol": float(c[5])}
@@ -175,7 +155,7 @@ def fetch_ticker_info(symbol):
         print("fetch_ticker_info error", e)
         return {}
 
-# ----------------- Индикаторы --------------------
+# ----------------- Indicators --------------------
 def ema(series, n): return series.ewm(span=n, adjust=False).mean()
 def sma(series, n): return series.rolling(n).mean()
 
@@ -212,7 +192,7 @@ def adx(df, n=14):
     dx = (abs(plus_di-minus_di)/(plus_di+minus_di+1e-9))*100
     return dx.rolling(n).mean()
 
-# ----------------- Order-block (простой) ------------------
+# ----------------- Order-block & imbalance ------------------
 def detect_order_block(df, lookback=30, range_pct=0.005):
     try:
         if df.empty or len(df) < lookback:
@@ -220,7 +200,6 @@ def detect_order_block(df, lookback=30, range_pct=0.005):
         sub = df.iloc[-lookback:]
         idx_max = sub['high'].idxmax()
         idx_min = sub['low'].idxmin()
-        # берем самый свежий экстремум
         if idx_max > idx_min:
             price = sub.loc[idx_max,'high']
             low = price*(1-range_pct); high = price*(1+range_pct)
@@ -233,7 +212,6 @@ def detect_order_block(df, lookback=30, range_pct=0.005):
         print("detect_order_block error", e)
         return None
 
-# ----------------- Orderbook imbalance -------------------
 def compute_ob_imbalance(ob, top_n=10):
     try:
         bids = ob.get('bids', [])[:top_n]
@@ -318,7 +296,6 @@ def compute_composite_score(f):
     score = 50
     reasons = []
 
-    # Trend alignment
     if f['trend_h1'] == f['trend_h4'] == f['trend_d1']:
         score += 20; reasons.append("trend_all")
     elif f['trend_h1'] == f['trend_h4']:
@@ -326,23 +303,19 @@ def compute_composite_score(f):
     elif f['trend_h1'] == f['trend_d1']:
         score += 10
 
-    # ADX
     if f['adx_h1'] >= MIN_ADX:
         score += 12; reasons.append("adx_strong")
     else:
         score -= 5
 
-    # OB imbalance
     if f['ob_conf'] and ((f['ob_imbalance']>0 and f['trend_h1']==1) or (f['ob_imbalance']<0 and f['trend_h1']==-1)):
         score += 18; reasons.append("ob_confirm")
     elif f['ob_conf']:
         score += 6
 
-    # volume spike
     if f['vol_spike']:
         score += 10; reasons.append("vol_spike")
 
-    # order block alignment
     if f['order_block']:
         ob = f['order_block']
         if (ob['type']=='demand' and f['trend_h1']==1) or (ob['type']=='supply' and f['trend_h1']==-1):
@@ -350,15 +323,12 @@ def compute_composite_score(f):
         else:
             score -= 6
 
-    # funding small weight
     if f['funding'] > 0.0008 and f['trend_h1']==1: score += 5
     if f['funding'] < -0.0008 and f['trend_h1']==-1: score += 5
 
-    # RSI extremes penalty
     if (f['trend_h1']==1 and f['rsi_h1']>75) or (f['trend_h1']==-1 and f['rsi_h1']<25):
         score -= 8; reasons.append("rsi_extreme")
 
-    # volatility penalty
     if f['atr_h1'] and f['atr_h1'] > (f['price']*0.04):
         score -= 8; reasons.append("high_atr")
 
@@ -381,7 +351,6 @@ def calculate_sl_tp_high_rr(f, direction, base_risk_pct=0.007):
         tp2 = price - (sl_distance * MIN_RR * 1.8)
         tp3 = price - (sl_distance * MIN_RR * 3.0)
 
-    # clamp TP within plausible ATR*10
     def clamp_tp(tp):
         max_move = price + 10*atr_v
         min_move = price - 10*atr_v
@@ -470,251 +439,110 @@ def format_adv_message(res):
 """
     return msg
 
+# простые wrappers (если у тебя такие уже есть — используй свои)
+def get_recent_prices(symbol, n=100):
+    df = fetch_klines(symbol, interval=TFS["H1"], limit=n)
+    return df['close'].tolist() if not df.empty else []
 
-def send_signal_to_telegram(res, chat_id=CHAT_ID):
+def get_recent_volumes(symbol, n=100):
+    df = fetch_klines(symbol, interval=TFS["H1"], limit=n)
+    return df['vol'].tolist() if not df.empty else []
+
+# если отправку вынес в внешний модуль, можно вызывать его; иначе используем локальную реализацию
+def send_signal_to_telegram_local(res, chat_id=CHAT_ID):
     if not bot:
         print("Bot not configured - cannot send message")
         return
-
     msg = format_adv_message(res)
-
     try:
-        # Получаем данные для графика
         prices = get_recent_prices(res["symbol"])
         direction = res.get("direction", "long")
-        chart_buf = generate_signal_chart(res["symbol"], prices, direction)
+        # generate_signal_chart должен быть в проекте; если нет — пропускаем изображение
+        chart_buf = None
+        try:
+            chart_buf = generate_signal_chart(res["symbol"], prices, direction)  # если функция есть
+        except Exception:
+            chart_buf = None
 
         if chart_buf:
             bot.send_photo(chat_id, chart_buf, caption=msg, parse_mode="HTML")
-            bot.send_photo(FRIEND_CHAT_ID, chart_buf, caption=msg, parse_mode="HTML")
+            if FRIEND_CHAT_ID:
+                bot.send_photo(FRIEND_CHAT_ID, chart_buf, caption=msg, parse_mode="HTML")
         else:
             bot.send_message(chat_id, msg, parse_mode="HTML")
-            bot.send_message(FRIEND_CHAT_ID, msg, parse_mode="HTML")
-
+            if FRIEND_CHAT_ID:
+                bot.send_message(FRIEND_CHAT_ID, msg, parse_mode="HTML")
         print(f"✅ Signal sent for {res['symbol']} to {chat_id} and friend ({FRIEND_CHAT_ID})")
-
     except Exception as e:
         print(f"❌ Ошибка при отправке сигнала: {e}")
 
+# используем внешний если есть
+if 'send_signal_to_telegram' not in globals():
+    send_signal_to_telegram = send_signal_to_telegram_local
+
+# ---------------- Анализ рынка и выбор -----------------
 def analyze_market_and_pick(universe=None):
     btc = fetch_btc_trend()
-    print(f"📊 Тренд BTC: {btc['trend']}, сила: {btc['strength']:.2f}, волатильность: {btc['volatility']}")
+    print(f"📊 Тренд BTC: {btc.get('trend')}, сила: {btc.get('strength')}, волатильность: {btc.get('volatility')}")
 
     # Проверка силы и волатильности до анализа
-    if btc["strength"] < 0.15 or btc["volatility"] == "high":
+    if btc.get("strength", 0) < 0.15 or btc.get("volatility") == "high":
         print("⚠️ Рынок BTC слабый или слишком волатильный — анализ остановлен.")
-        return []  # теперь внутри функции ✅
+        return []
 
-universe = universe or fetch_symbols_usdt()
-candidates = []
-sample = universe[:MAX_CANDIDATES * 6]
+    universe = universe or fetch_symbols_usdt()
+    candidates = []
+    sample = universe[:MAX_CANDIDATES * 6]
 
-for symbol in sample:
-    f = build_advanced_features(symbol)
-    if not f:
-        continue
-
-    res = decide_for_symbol(f)
-    if not res:
-        continue
-
-    # Проверка на противоречие тренду BTC
-    if (btc["trend"] == "BULLISH" and res["direction"] == "SHORT") or \
-       (btc["trend"] == "BEARISH" and res["direction"] == "LONG"):
-        print(f"⚠️ {res['symbol']} отклонён — против тренда BTC ({btc['trend']})")
-        continue
-
-    # 🟡 Проверка глобального тренда (1W)
-    try:
-        global_trend = get_weekly_trend(symbol)
-        signal_dir = res.get("direction", "").lower()
-
-        if (global_trend == "bullish" and signal_dir == "long") or \
-           (global_trend == "bearish" and signal_dir == "short"):
-            print(f"✅ {symbol} согласуется с глобальным трендом ({global_trend})")
-        else:
-            print(f"⚠️ {symbol} пропущен — сигнал против глобального тренда ({global_trend})")
+    for symbol in sample:
+        f = build_advanced_features(symbol)
+        if not f:
             continue
-    except Exception as e:
-        print(f"⚠️ Ошибка при проверке глобального тренда для {symbol}: {e}")
-        continue
 
-    # ✅ Проверяем сигнал фильтром перед отправкой
-    balance = 1000
-    prices = get_recent_prices(symbol)
-    volumes = get_recent_volumes(symbol)
+        res = decide_for_symbol(f)
+        if not res:
+            continue
 
-    if should_trade(res, prices, volumes, balance):
-        send_signal_to_telegram(res)
-    else:
-            print(f"❌ {symbol}: сигнал не прошёл фильтрацию.")
+        # Проверка на противоречие тренду BTC (допускаем разные форматы тренда)
+        btc_tr = btc.get("trend","").lower()
+        res_dir = res.get("direction","").lower()
+        if (btc_tr in ["bullish","восходящий"] and res_dir == "short") or \
+           (btc_tr in ["bearish","нисходящий"] and res_dir == "long"):
+            print(f"⚠️ {res['symbol']} отклонён — против тренда BTC ({btc.get('trend')})")
+            continue
+
+        # Проверка глобального тренда (1W)
+        try:
+            global_tr = get_weekly_trend(symbol)
+            signal_dir = res.get("direction", "").lower()
+            gt = (global_tr or "").lower()
+            if (gt in ["bullish","восходящий"] and signal_dir == "long") or \
+               (gt in ["bearish","нисходящий"] and signal_dir == "short"):
+                print(f"✅ {symbol} согласуется с глобальным трендом ({global_tr})")
+                # можно записать в res
+                res["global_trend"] = global_tr
+            else:
+                print(f"⚠️ {symbol} пропущен — сигнал против глобального тренда ({global_tr})")
+                continue
+        except Exception as e:
+            print(f"⚠️ Ошибка при проверке глобального тренда для {symbol}: {e}")
+            # безопасно пропускаем при ошибке
+            continue
+
+        # Проверяем сигнал фильтром перед отправкой
+        balance = 1000
+        prices = get_recent_prices(symbol)
+        volumes = get_recent_volumes(symbol)
+
+        try:
+            if should_trade(res, prices, volumes, balance):
+                send_signal_to_telegram(res)
+            else:
+                print(f"❌ {symbol}: сигнал не прошёл фильтрацию.")
+                continue
+        except Exception as e:
+            print(f"Ошибка при фильтрации/отправке для {symbol}: {e}")
             continue
 
         # Добавляем результат, если всё ок
-        est = res["score"] * (res.get("rr3", 0) or 1)
-        candidates.append((est, res))
-
-        # Сортировка и выбор лучших
-        candidates.sort(key=lambda x: x[0], reverse=True)
-        top = [c[1] for c in candidates[:TOP_N]]
-        return top
-
-# --------------- Scheduler loop ----------------
-import time
-import pytz
-import traceback
-from datetime import datetime
-import threading
-
-MOLDOVA_TZ = pytz.timezone("Europe/Chisinau")
-SEND_HOURS = list(range(7, 21))  # 07:00–20:00
-CHECK_INTERVAL = 30  # проверка каждые 30 секунд
-
-def scheduler_loop():
-    print("📅 Планировщик FinAI запущен (07:00–20:00 по Молдове).")
-    last_sent_hour = None
-
-    while True:
-        try:
-            now_md = datetime.now(MOLDOVA_TZ)
-            hour = now_md.hour
-            minute = now_md.minute
-
-            print(f"[{now_md.strftime('%H:%M:%S')}] Проверка времени...")
-
-            if hour in SEND_HOURS and minute < 2 and last_sent_hour != hour:
-                print(f"⏰ [{now_md.strftime('%H:%M')}] Генерация сигналов...")
-                picks = analyze_market_and_pick()
-
-                # --- Проверка тренда BTC перед анализом ---
-                btc_trend = fetch_btc_trend()
-
-                # Если тренд нейтральный или надёжность низкая — не отправляем сигналы
-                if btc_trend.get("trend") == "NEUTRAL" or btc_trend.get("reliability") == "низкая":
-                    print("⚠️ Сигналы пропущены — рынок неопределённый или тренд слабый.")
-                    picks = []
-                else:
-                    filtered_picks = []
-                    for res in picks:
-                        if btc_trend["trend"] == "Восходящий" and res["trend"] == "short":
-                            print(f"⚠️ Пропущен {res['symbol']} — BTC в восходящем тренде.")
-                            continue
-                        if btc_trend["trend"] == "Нисходящий" and res["trend"] == "long":
-                            print(f"⚠️ Пропущен {res['symbol']} — BTC в нисходящем тренде.")
-                            continue
-                        filtered_picks.append(res)
-                    picks = filtered_picks
-
-                if picks:
-                    print(f"✅ Найдено {len(picks)} сигналов.")
-                    FRIEND_CHAT_ID = 5859602362  # <-- вставь сюда Telegram ID друга
-
-                    for res in picks:
-                        symbol = res.get("symbol", "UNKNOWN")
-
-                        if should_send_signal(symbol, res):
-                            # Отправляем тебе
-                            send_signal_to_telegram(res)
-                            # Отправляем другу
-                            send_signal_to_telegram(res, chat_id=FRIEND_CHAT_ID)
-                        else:
-                            print(f"⚠️ Пропускаем повторный сигнал для {symbol}")
-
-                        time.sleep(1)
-                else:
-                    print("⚠️ Нет подходящих сигналов.")
-                last_sent_hour = hour
-
-            if hour not in SEND_HOURS:
-                last_sent_hour = None
-
-            time.sleep(CHECK_INTERVAL)
-
-        except Exception as e:
-            print("❌ Ошибка в планировщике:", e)
-            traceback.print_exc()
-            time.sleep(60)
-# ------------------- Антидубликат сигналов -------------------
-last_signals = {}
-last_sent_time = {}
-
-# Порог изменения цены (например, 1%)
-PRICE_CHANGE_THRESHOLD = 0.01  # 1%
-# Минимальный интервал между одинаковыми сигналами (в секундах)
-MIN_SIGNAL_INTERVAL = 3600  # 1 час
-
-def should_send_signal(symbol, signal_data):
-    """
-    Проверяем, стоит ли отправлять новый сигнал, чтобы не было дубликатов.
-    """
-    now = time.time()
-    key = f"{symbol}_{signal_data.get('direction', '')}"
-
-    prev_signal = last_signals.get(key)
-    last_time = last_sent_time.get(key, 0)
-
-    # Проверка интервала времени
-    if now - last_time < MIN_SIGNAL_INTERVAL:
-        print(f"⏳ Сигнал {symbol} недавно уже отправлялся ({int((now - last_time)/60)} мин назад). Пропускаем.")
-        return False
-
-    # Проверка различий в цене входа
-    if prev_signal:
-        prev_price = prev_signal.get("entry_price")
-        new_price = signal_data.get("entry_price")
-        if prev_price and new_price:
-            diff = abs(new_price - prev_price) / prev_price
-            if diff < PRICE_CHANGE_THRESHOLD:
-                print(f"⚠️ Сигнал по {symbol} изменился меньше чем на {PRICE_CHANGE_THRESHOLD*100:.1f}%, пропускаем.")
-                return False
-
-    # Если всё ок — обновляем запись
-    last_signals[key] = signal_data
-    last_sent_time[key] = now
-    return True
-
-# --------------- Запуск потоков и Flask ----------------
-def start_threads():
-    # 🧭 Поток для планировщика
-    t = threading.Thread(target=scheduler_loop, name="scheduler", daemon=True)
-    t.start()
-    print("🟢 Scheduler thread started.")
-
-    # Настройка webhook для Telegram (вместо polling)
-if bot:
-    import requests
-
-    WEBHOOK_HOST = "https://" + os.getenv("KOYEB_APP_NAME") + ".koyeb.app"
-    WEBHOOK_URL = f"{WEBHOOK_HOST}/{BOT_TOKEN}"
-
-    try:
-        bot.remove_webhook()
-        time.sleep(1)
-        bot.set_webhook(url=WEBHOOK_URL)
-        print(f"✅ Webhook установлен: {WEBHOOK_URL}")
-    except Exception as e:
-        print("❌ Ошибка при установке webhook:", e)
-else:
-    print("⚠️ Bot not configured; skipping webhook setup.")
-
-# ---------------- Основная точка входа ----------------
-if __name__ == "__main__":
-    # Запускаем планировщик и Flask
-    start_threads()
-
-    # Flask на порту, который передаёт Koyeb (или 8000 по умолчанию)
-    port = int(os.getenv("PORT", "8000"))
-    print(f"Starting Flask on 0.0.0.0:{port}")
-
-    from threading import Thread
-    flask_thread = Thread(target=lambda: app.run(host="0.0.0.0", port=port))
-    flask_thread.start()
-
-    print("Flask started successfully on port", port)
-
-    # Держим процесс активным
-    try:
-        while True:
-            time.sleep(60)
-    except KeyboardInterrupt:
-        print("Bot stopped manually")
+        est = res["score"] * (res.
