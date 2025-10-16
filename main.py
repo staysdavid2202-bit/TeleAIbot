@@ -17,6 +17,8 @@ import requests
 import json
 from btc_filter import fetch_btc_trend
 from trend_filter import get_weekly_trend
+from filters import should_trade
+from send_to_telegram import send_signal_to_telegram
 
 # Попробуем импортировать numpy/pandas, если нет — поймать ошибку и дать подсказку (Koyeb должен установить requirements)
 try:
@@ -500,20 +502,31 @@ def analyze_market_and_pick(universe=None):
             print(f"⚠️ {res['symbol']} отклонён — против тренда BTC ({btc['trend']})")
             continue
 
-        # ✅ Проверка глобального тренда (1W)
-        try:
-            global_trend = get_weekly_trend(symbol)
-            signal_dir = res.get("direction", "").lower()
+        # Проверка глобального тренда (1W)
+try:
+    global_trend = get_weekly_trend(symbol)
+    signal_dir = res.get("direction", "").lower()
 
-            if (global_trend == "bullish" and signal_dir == "long") or \
-               (global_trend == "bearish" and signal_dir == "short"):
-                print(f"✅ {symbol} согласуется с глобальным трендом ({global_trend})")
-            else:
-                print(f"⚠️ {symbol} пропущен — сигнал против глобального тренда ({global_trend})")
-                continue
-        except Exception as e:
-            print(f"Ошибка при проверке глобального тренда для {symbol}: {e}")
-            continue
+    if (global_trend == "bullish" and signal_dir == "long") or \
+       (global_trend == "bearish" and signal_dir == "short"):
+        print(f"✅ {symbol} согласуется с глобальным трендом ({global_trend})")
+    else:
+        print(f"⚠️ {symbol} пропущен — сигнал против глобального тренда ({global_trend})")
+        continue
+except Exception as e:
+    print(f"⚠️ Ошибка при проверке глобального тренда для {symbol}: {e}")
+    continue
+
+# ✅ Проверяем сигнал фильтром перед отправкой
+balance = 1000
+prices = get_recent_prices(symbol)
+volumes = get_recent_volumes(symbol)
+
+if should_trade(res, prices, volumes, balance):
+    send_signal_to_telegram(res)
+else:
+    print(f"❌ {symbol}: сигнал не прошёл фильтрацию.")
+    continue
             
         # Добавляем результат, если всё ок
         est = res["score"] * (res.get("rr3", 0) or 1)
