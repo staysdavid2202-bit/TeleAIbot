@@ -534,10 +534,10 @@ for symbol in sample:
             print(f"✅ {symbol} согласуется с глобальным трендом ({global_trend})")
         else:
             print(f"⚠️ {symbol} пропущен — сигнал против глобального тренда ({global_trend})")
-            continue  # ⬅️ этот continue должен быть ВНУТРИ цикла for
+            continue
     except Exception as e:
         print(f"⚠️ Ошибка при проверке глобального тренда для {symbol}: {e}")
-        continue  # ⬅️ добавляем сюда, чтобы при ошибке тоже пропустить
+        continue
 
     # ✅ Проверяем сигнал фильтром перед отправкой
     balance = 1000
@@ -547,16 +547,16 @@ for symbol in sample:
     if should_trade(res, prices, volumes, balance):
         send_signal_to_telegram(res)
     else:
-        print(f"❌ {symbol}: сигнал не прошёл фильтрацию.")
-        continue
+            print(f"❌ {symbol}: сигнал не прошёл фильтрацию.")
+            continue
 
-    # Добавляем результат, если всё ок
-    est = res["score"] * (res.get("rr3", 0) or 1)
-    candidates.append((est, res))
+        # Добавляем результат, если всё ок
+        est = res["score"] * (res.get("rr3", 0) or 1)
+        candidates.append((est, res))
 
-    # Сортировка и выбор лучших
-    candidates.sort(key=lambda x: x[0], reverse=True)
-    top = [c[1] for c in candidates[:TOP_N]]
+        # Сортировка и выбор лучших
+        candidates.sort(key=lambda x: x[0], reverse=True)
+        top = [c[1] for c in candidates[:TOP_N]]
         return top
 
 # --------------- Scheduler loop ----------------
