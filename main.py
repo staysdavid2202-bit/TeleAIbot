@@ -550,9 +550,9 @@ else:
     print(f"❌ {symbol}: сигнал не прошёл фильтрацию.")
     continue
             
-        # Добавляем результат, если всё ок
-        est = res["score"] * (res.get("rr3", 0) or 1)
-        candidates.append((est, res))
+    # Добавляем результат, если всё ок
+    est = res["score"] * (res.get("rr3", 0) or 1)
+    candidates.append((est, res))
 
     # Сортировка и выбор лучших
     candidates.sort(key=lambda x: x[0], reverse=True)
