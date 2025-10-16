@@ -498,60 +498,59 @@ def send_signal_to_telegram(res, chat_id=CHAT_ID):
 
 def analyze_market_and_pick(universe=None):
     btc = fetch_btc_trend()
-    print(f"🔍 Тренд BTC: {btc['trend']}, сила: {btc['strength']:.2f}, волатильность: {btc['volatility']}")
+print(f"📊 Тренд BTC: {btc['trend']}, сила: {btc['strength']:.2f}, волатильность: {btc['volatility']}")
 
-    # Проверка силы и волатильности до анализа
-    if btc["strength"] < 0.15 or btc["volatility"] == "high":
-        print("⚠️ Рынок BTC слабый или слишком волатильный — анализ остановлен.")
-        return []  # ← теперь внутри функции ✅
+# Проверка силы и волатильности до анализа
+if btc["strength"] < 0.15 or btc["volatility"] == "high":
+    print("⚠️ Рынок BTC слабый или слишком волатильный — анализ остановлен.")
+    return []  # теперь внутри функции ✅
 
-    universe = universe or fetch_symbols_usdt()
-    candidates = []
-    sample = universe[:MAX_CANDIDATES * 6]
+universe = universe or fetch_symbols_usdt()
+candidates = []
+sample = universe[:MAX_CANDIDATES * 6]
 
-    for symbol in sample:
-        f = build_advanced_features(symbol)
-        if not f:
-            continue
+for symbol in sample:
+    f = build_advanced_features(symbol)
+    if not f:
+        continue
 
-        res = decide_for_symbol(f)
-        if not res:
-            continue
+    res = decide_for_symbol(f)
+    if not res:
+        continue
 
-        # Проверка на противоречие тренду BTC
-        if (btc["trend"] == "BULLISH" and res["direction"] == "SHORT") or \
-           (btc["trend"] == "BEARISH" and res["direction"] == "LONG"):
-            print(f"⚠️ {res['symbol']} отклонён — против тренда BTC ({btc['trend']})")
-            continue
+    # Проверка на противоречие тренду BTC
+    if (btc["trend"] == "BULLISH" and res["direction"] == "SHORT") or \
+       (btc["trend"] == "BEARISH" and res["direction"] == "LONG"):
+        print(f"⚠️ {res['symbol']} отклонён — против тренда BTC ({btc['trend']})")
+        continue
 
-        # 🔍 Проверка глобального тренда (1W)
-    try:
-        global_trend = get_weekly_trend(symbol)
-        signal_dir = res.get("direction", "").lower()
+    # 🧭 Проверка глобального тренда (1W)
+try:
+    global_trend = get_weekly_trend(symbol)
+    signal_dir = res.get("direction", "").lower()
 
-        if (global_trend == "bullish" and signal_dir == "long") or \
-           (global_trend == "bearish" and signal_dir == "short"):
-            print(f"✅ {symbol} согласуется с глобальным трендом ({global_trend})")
-        else:
-            print(f"⚠️ {symbol} пропущен — сигнал против глобального тренда ({global_trend})")
-            continue
+    if (global_trend == "bullish" and signal_dir == "long") or \
+       (global_trend == "bearish" and signal_dir == "short"):
+        print(f"✅ {symbol} согласуется с глобальным трендом ({global_trend})")
+    else:
+        print(f"⚠️ {symbol} пропущен — сигнал против глобального тренда ({global_trend})")
+        continue  # Пропускаем сигнал, если тренд не совпадает
 
-    except Exception as e:
-        print(f"⚠️ Ошибка при проверке глобального тренда для {symbol}: {e}")
-        # просто пропускаем, но без continue
-        pass
+except Exception as e:
+    print(f"⚠️ Ошибка при проверке глобального тренда для {symbol}: {e}")
+    pass  # Безопасно пропускаем при ошибке
 
-# ✅ Проверяем сигнал фильтром перед отправкой
-balance = 1000
-prices = get_recent_prices(symbol)
-volumes = get_recent_volumes(symbol)
+    # ✅ Проверяем сигнал фильтром перед отправкой
+    balance = 1000
+    prices = get_recent_prices(symbol)
+    volumes = get_recent_volumes(symbol)
 
-if should_trade(res, prices, volumes, balance):
-    send_signal_to_telegram(res)
-else:
-    print(f"❌ {symbol}: сигнал не прошёл фильтрацию.")
-    continue
-            
+    if should_trade(res, prices, volumes, balance):
+        send_signal_to_telegram(res)
+    else:
+        print(f"❌ {symbol}: сигнал не прошёл фильтрацию.")
+        continue
+
     # Добавляем результат, если всё ок
     est = res["score"] * (res.get("rr3", 0) or 1)
     candidates.append((est, res))
