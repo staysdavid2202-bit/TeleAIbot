@@ -555,9 +555,9 @@ for symbol in sample:
     candidates.append((est, res))
 
     # Сортировка и выбор лучших
-    candidates.sort(key=lambda x: x[0], reverse=True)
-    top = [c[1] for c in candidates[:TOP_N]]
-    return top
+        candidates.sort(key=lambda x: x[0], reverse=True)
+        top = [c[1] for c in candidates[:TOP_N]]
+        return top
 
 # --------------- Scheduler loop ----------------
 import time
