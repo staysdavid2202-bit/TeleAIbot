@@ -524,21 +524,20 @@ for symbol in sample:
         print(f"⚠️ {res['symbol']} отклонён — против тренда BTC ({btc['trend']})")
         continue
 
-    # 🧭 Проверка глобального тренда (1W)
-try:
-    global_trend = get_weekly_trend(symbol)
-    signal_dir = res.get("direction", "").lower()
+    # 🟡 Проверка глобального тренда (1W)
+    try:
+        global_trend = get_weekly_trend(symbol)
+        signal_dir = res.get("direction", "").lower()
 
-    if (global_trend == "bullish" and signal_dir == "long") or \
-       (global_trend == "bearish" and signal_dir == "short"):
-        print(f"✅ {symbol} согласуется с глобальным трендом ({global_trend})")
-    else:
-        print(f"⚠️ {symbol} пропущен — сигнал против глобального тренда ({global_trend})")
-        continue  # Пропускаем сигнал, если тренд не совпадает
-
-except Exception as e:
-    print(f"⚠️ Ошибка при проверке глобального тренда для {symbol}: {e}")
-    pass  # Безопасно пропускаем при ошибке
+        if (global_trend == "bullish" and signal_dir == "long") or \
+           (global_trend == "bearish" and signal_dir == "short"):
+            print(f"✅ {symbol} согласуется с глобальным трендом ({global_trend})")
+        else:
+            print(f"⚠️ {symbol} пропущен — сигнал против глобального тренда ({global_trend})")
+            continue  # ⬅️ этот continue должен быть ВНУТРИ цикла for
+    except Exception as e:
+        print(f"⚠️ Ошибка при проверке глобального тренда для {symbol}: {e}")
+        continue  # ⬅️ добавляем сюда, чтобы при ошибке тоже пропустить
 
     # ✅ Проверяем сигнал фильтром перед отправкой
     balance = 1000
