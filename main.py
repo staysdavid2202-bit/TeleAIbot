@@ -19,6 +19,10 @@ from btc_filter import fetch_btc_trend
 from trend_filter import get_weekly_trend
 from filters import should_trade
 from send_to_telegram import send_signal_to_telegram
+import matplotlib.pyplot as plt
+import pandas as pd
+import io
+from datetime import datetime, timezone, timedelta
 
 # Попробуем импортировать numpy/pandas, если нет — поймать ошибку и дать подсказку (Koyeb должен установить requirements)
 try:
@@ -436,23 +440,36 @@ def decide_for_symbol(f):
 
 # ----------------- Format & send -------------------
 def format_adv_message(res):
-    emoji = "🟢" if res['direction'] == "LONG" else "🔴"
-    msg = (
-        f"📈 <b>FinAI — Advanced Signal</b>\n"
-        f"━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"💱 <b>Пара:</b> <code>{res['symbol']}</code>\n"
-        f"📍 <b>Направление:</b> {emoji} <b>{res['direction']}</b>\n"
-        f"💰 <b>Цена входа:</b> ${res['price']:.6f}\n"
-        f"🎯 <b>TP1:</b> ${res['tp1']:.6f} (RR {res['rr1']:.2f}x)\n"
-        f"🎯 <b>TP2:</b> ${res['tp2']:.6f} (RR {res['rr2']:.2f}x)\n"
-        f"🎯 <b>TP3:</b> ${res['tp3']:.6f} (RR {res['rr3']:.2f}x)\n"
-        f"🛡 <b>SL:</b> ${res['sl']:.6f}\n"
-        f"🔢 <b>Score:</b> {res['score']}\n"
-        f"🧾 <b>Причины:</b> {', '.join(res['reasons'])}\n"
-        f"━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"⚠️ <i>Риск-менеджмент обязателен. Это сигнал — не финансовый совет.</i>"
-    )
+    symbol = res.get("symbol", "?")
+    tf = res.get("tf", "1H")
+    direction = res.get("direction", "?").upper()
+    trend = res.get("global_trend", "?")
+    momentum = res.get("momentum", 0.8)
+    confidence = res.get("confidence", 0.75)
+    volatility = res.get("volatility", 0.3)
+    model = res.get("model", "NeuralTrend v3.2")
+
+    msg = f"""
+🤖 <b>FinAI Signal Alert</b>
+
+💎 Актив: <code>{symbol}</code>
+📊 Таймфрейм: {tf}
+📈 Направление: <b>{direction}</b>
+🌍 Глобальный тренд (1W): <b>{trend}</b>
+━━━━━━━━━━━━━━━━━━━
+📊 Momentum: {'█' * int(momentum*15)}{'░' * (15 - int(momentum*15))} {momentum*100:.0f}%
+💪 Confidence: {'█' * int(confidence*15)}{'░' * (15 - int(confidence*15))} {confidence*100:.0f}%
+⚡ Volatility: {'█' * int(volatility*15)}{'░' * (15 - int(volatility*15))} {volatility*100:.0f}%
+━━━━━━━━━━━━━━━━━━━
+🧠 Модель: {model}
+📅 Дата: {datetime.now().strftime('%Y-%m-%d %H:%M')} (UTC+2)
+━━━━━━━━━━━━━━━━━━━
+<i>💬 AI Insight:</i>
+Тренд и сила совпадают — возможен продолжительный импульс.
+<i>⚠️ Риск-менеджмент обязателен. Это не финансовый совет.</i>
+"""
     return msg
+
 
 def send_signal_to_telegram(res, chat_id=CHAT_ID):
     if not bot:
@@ -460,19 +477,24 @@ def send_signal_to_telegram(res, chat_id=CHAT_ID):
         return
 
     msg = format_adv_message(res)
+
     try:
-        # Отправляем сообщение тебе
-        bot.send_message(chat_id, msg, parse_mode="HTML")
+        # Получаем данные для графика
+        prices = get_recent_prices(res["symbol"])
+        direction = res.get("direction", "long")
+        chart_buf = generate_signal_chart(res["symbol"], prices, direction)
 
-        # Отправляем сообщение другу
-        bot.send_message(FRIEND_CHAT_ID, msg, parse_mode="HTML")
+        if chart_buf:
+            bot.send_photo(chat_id, chart_buf, caption=msg, parse_mode="HTML")
+            bot.send_photo(FRIEND_CHAT_ID, chart_buf, caption=msg, parse_mode="HTML")
+        else:
+            bot.send_message(chat_id, msg, parse_mode="HTML")
+            bot.send_message(FRIEND_CHAT_ID, msg, parse_mode="HTML")
 
-        # Успешная отправка
-        print(f"✅ Signal sent to {res['symbol']} → you ({chat_id}) and friend ({FRIEND_CHAT_ID})")
+        print(f"✅ Signal sent for {res['symbol']} to {chat_id} and friend ({FRIEND_CHAT_ID})")
 
     except Exception as e:
-        # Обработка ошибки
-        print(f"❌ send_signal_to_telegram error for chat_id {chat_id}: {e}")
+        print(f"❌ Ошибка при отправке сигнала: {e}")
 
 def analyze_market_and_pick(universe=None):
     btc = fetch_btc_trend()
