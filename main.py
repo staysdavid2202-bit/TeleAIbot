@@ -571,6 +571,7 @@ def scheduler_loop():
     last_sent_hour = None
 
     while True:
+        picks = []
         try:
             now_md = datetime.now(MOLDOVA_TZ)
             hour = now_md.hour
