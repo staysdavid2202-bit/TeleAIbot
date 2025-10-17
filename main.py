@@ -511,14 +511,14 @@ def analyze_market_and_pick(universe=None):
 
     soft_mode = False
 
-    # Если тренд слабый — срабатывает Soft Mode
+    # Если тренд слабый — активируем Soft Mode, но не останавливаем анализ
     if btc_strength < min_strength:
         chance = btc_strength * 4  # вероятность от 0 до ~0.6
         if random.random() > chance:
-            print(f"⚠️ BTC слаб ({btc_strength:.2f}), анализ пропущен.")
-            return []
+            print(f"⚠️ BTC слаб ({btc_strength:.2f}), но Soft Mode разрешает продолжить анализ.")
+            soft_mode = True
         else:
-            print("🟡 BTC слаб, но анализ разрешён адаптивным фильтром (Soft Mode).")
+            print("🟡 BTC слаб, анализ продолжается в режиме Soft Mode.")
             soft_mode = True
 
     universe = universe or SYMBOLS
