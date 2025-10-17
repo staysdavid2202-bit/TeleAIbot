@@ -6,4 +6,4 @@ pybit==5.6.1
 pandas==2.2.3
 gunicorn==23.0.0
 python-dotenv==1.0.1
-matplotlib
+matplotlib==3.9.2
