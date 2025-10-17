@@ -492,33 +492,6 @@ if 'send_signal_to_telegram' not in globals():
 # ---------------- Анализ рынка и выбор -----------------
 def analyze_market_and_pick(universe=None):
     import random
-
-    btc = fetch_btc_trend()
-    print(f"📊 Тренд BTC: {btc.get('trend')}, сила: {btc.get('strength')}, волатильность: {btc.get('volatility')}")
-
-    # --- Умное ослабление фильтров BTC ---
-    btc_strength = btc.get("strength", 0)
-    btc_volatility = btc.get("volatility", "medium")
-
-    # Порог силы и реакция на волатильность
-    if btc_volatility == "high":
-        min_strength = 0.25
-    elif btc_volatility == "medium":
-        min_strength = 0.12
-    else:
-        min_strength = 0.08
-
-    # Если тренд слишком слаб — шанс всё равно продолжить анализ
-    if btc_strength < min_strength:
-        chance = btc_strength * 4  # вероятность от 0 до ~0.6
-        if random.random() > chance:
-            print(f"⚠️ BTC слаб ({btc_strength:.2f}), анализ пропущен.")
-            return []
-        else:
-
-# ---------------- Анализ рынка и выбор -----------------
-def analyze_market_and_pick(universe=None):
-    import random
     from datetime import datetime
 
     btc = fetch_btc_trend()
