@@ -747,9 +747,8 @@ def scheduler_loop():
                     if btc_trend["trend"] == "Нисходящий" and res["trend"] == "long":
                         print(f"⚠️ Пропущен {res['symbol']} — BTC в нисходящем тренде.")
                         continue
-                    filtered_picks.append(res)
-                    picks = filtered_picks
-
+                        filtered_picks.append(res)
+                        picks = filtered_picks
 
                 if picks:
                     print(f"✅ Найдено {len(picks)} сигналов.")
