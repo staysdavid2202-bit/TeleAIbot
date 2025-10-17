@@ -68,19 +68,17 @@ SYMBOLS = [
 
 print(f"✅ Используем {len(SYMBOLS)} пар для анализа: {', '.join(SYMBOLS)}")
 
-# Strategy params
-TFS = {"M15":"15", "H1":"60", "H4":"240", "D1":"D"}
+# Strategy params (обновлённые)
+TFS = {"M15": "15", "H1": "60", "H4": "240", "D1": "D"}
 KLINE_LIMIT = 300
-MIN_ADX = 18
-VOLUME_SPIKE_MULT = 1.6
-OB_IMBALANCE_THRESHOLD = 0.06
-SCORE_THRESHOLD = 72
-MIN_RR = 3.0
-MAX_CANDIDATES = 6
-TOP_N = 3
-SEND_TOP_N = 2
-DATA_DIR = "/tmp/finai_adv"
-os.makedirs(DATA_DIR, exist_ok=True)
+MIN_ADX = 12                 # Было 18
+VOLUME_SPIKE_MULT = 1.2      # Было 1.6
+OB_IMBALANCE_THRESHOLD = 0.03 # Было 0.06
+SCORE_THRESHOLD = 60         # Было 72
+MIN_RR = 1.8                 # Было 3.0
+MAX_CANDIDATES = 8
+TOP_N = 4
+SEND_TOP_N = 3
 
 SEND_TIMES = ["08:00","14:00","20:00"]
 
