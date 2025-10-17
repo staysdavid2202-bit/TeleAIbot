@@ -582,24 +582,29 @@ def scheduler_loop():
                 print(f"⏰ [{now_md.strftime('%H:%M')}] Генерация сигналов...")
                 picks = analyze_market_and_pick()
 
-                # --- Проверка тренда BTC перед анализом ---
-                btc_trend = fetch_btc_trend()
+# ✅ Проверка, чтобы избежать ошибки 'NoneType is not iterable'
+if not picks or not isinstance(picks, list):
+    print(f"⚠️ Пропуск анализа — функция вернула {picks}")
+    picks = []
 
-                # Если тренд нейтральный или надёжность низкая — не отправляем сигналы
-                if btc_trend.get("trend") == "NEUTRAL" or btc_trend.get("reliability") == "низкая":
-                    print("⚠️ Сигналы пропущены — рынок неопределённый или тренд слабый.")
-                    picks = []
-                else:
-                    filtered_picks = []
-                    for res in picks:
-                        if btc_trend["trend"] == "Восходящий" and res["trend"] == "short":
-                            print(f"⚠️ Пропущен {res['symbol']} — BTC в восходящем тренде.")
-                            continue
-                        if btc_trend["trend"] == "Нисходящий" and res["trend"] == "long":
-                            print(f"⚠️ Пропущен {res['symbol']} — BTC в нисходящем тренде.")
-                            continue
-                        filtered_picks.append(res)
-                    picks = filtered_picks
+# --- Проверка тренда BTC перед анализом ---
+btc_trend = fetch_btc_trend()
+
+# Если тренд нейтральный или надёжность низкая — не отправляем сигналы
+if btc_trend.get("trend") == "NEUTRAL" or btc_trend.get("reliability") == "LOW":
+    print("⚠️ Сигналы пропущены — рынок неопределённый или тренд слабый.")
+    picks = []
+else:
+    filtered_picks = []
+    for res in picks:
+        if btc_trend["trend"] == "Восходящий" and res["trend"] == "short":
+            print(f"⚠️ Пропущен {res['symbol']} — BTC в восходящем тренде.")
+            continue
+        if btc_trend["trend"] == "Нисходящий" and res["trend"] == "long":
+            print(f"⚠️ Пропущен {res['symbol']} — BTC в нисходящем тренде.")
+            continue
+        filtered_picks.append(res)
+    picks = filtered_picks
 
                 if picks:
                     print(f"✅ Найдено {len(picks)} сигналов.")
