@@ -1,7 +1,6 @@
 # ========================= btc_filter.py =========================
-# Модуль: BTC Market Sentiment Filter
-# Назначение: анализирует тренд, волатильность и импульс BTC,
-# чтобы FINAL не торговал против основного движения рынка.
+# Модуль: BTC Market Sentiment Filter (умное ослабление фильтра)
+# Назначение: Анализ BTC с мягким определением тренда, силы и волатильности.
 
 import requests
 import pandas as pd
@@ -49,10 +48,7 @@ def fetch_btc_trend(interval="60", limit=200):
                 "strength": 0,
                 "rsi_state": "normal",
                 "volatility": "medium",
-                "macd": None,
-                "stoch_rsi": None,
-                "bollinger": None,
-                "надежность": "низкая"
+                "confidence": 0.3
             }
 
         data = j["result"]["list"]
@@ -69,17 +65,21 @@ def fetch_btc_trend(interval="60", limit=200):
         df["ema50"] = ema(df["close"], 50)
         df["ema100"] = ema(df["close"], 100)
 
-        # --- Определение тренда по EMA ---
-        if df["ema20"].iloc[-1] > df["ema50"].iloc[-1] > df["ema100"].iloc[-1]:
+        # --- Определение тренда с допуском ---
+        diff_20_50 = df["ema20"].iloc[-1] - df["ema50"].iloc[-1]
+        diff_50_100 = df["ema50"].iloc[-1] - df["ema100"].iloc[-1]
+        tolerance = df["close"].iloc[-1] * 0.002  # допуск 0.2%
+
+        if diff_20_50 > -tolerance and diff_50_100 > -tolerance:
             trend = "BULLISH"
-        elif df["ema20"].iloc[-1] < df["ema50"].iloc[-1] < df["ema100"].iloc[-1]:
+        elif diff_20_50 < tolerance and diff_50_100 < tolerance:
             trend = "BEARISH"
         else:
             trend = "NEUTRAL"
 
         # --- сила тренда ---
         ema_diff = abs(df["ema20"].iloc[-1] - df["ema50"].iloc[-1])
-        strength = min(1.0, ema_diff / df["close"].iloc[-1] * 80)
+        strength = min(1.0, ema_diff / df["close"].iloc[-1] * 100)
 
         # --- RSI ---
         df["rsi"] = rsi(df["close"], 14)
@@ -105,13 +105,19 @@ def fetch_btc_trend(interval="60", limit=200):
         else:
             volatility = "high"
 
-        print(f"[BTC_FILTER] {datetime.now().strftime('%H:%M:%S')} | Trend: {trend}, Strength: {round(float(strength), 3)}, RSI: {rsi_state}, Vol: {volatility}")
+        # --- уверенность фильтра ---
+        confidence = round(0.4 + strength * 0.6, 2)
+        if trend == "NEUTRAL":
+            confidence *= 0.5
+
+        print(f"[BTC_FILTER] {datetime.now().strftime('%H:%M:%S')} | Trend: {trend}, Strength: {round(float(strength), 3)}, RSI: {rsi_state}, Vol: {volatility}, Conf: {confidence}")
 
         return {
             "trend": trend,
             "strength": round(float(strength), 3),
             "rsi_state": rsi_state,
-            "volatility": volatility
+            "volatility": volatility,
+            "confidence": confidence
         }
 
     except Exception as e:
@@ -120,5 +126,6 @@ def fetch_btc_trend(interval="60", limit=200):
             "trend": "NEUTRAL",
             "strength": 0,
             "rsi_state": "normal",
-            "volatility": "medium"
+            "volatility": "medium",
+            "confidence": 0.2
         }
