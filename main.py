@@ -653,6 +653,68 @@ MOLDOVA_TZ = pytz.timezone("Europe/Chisinau")
 SEND_HOURS = list(range(7, 21))  # 07:00–20:00
 CHECK_INTERVAL = 30  # проверка каждые 30 секунд
 
+# ---------------- BTC Confidence Signal -----------------
+from btc_filter import fetch_btc_trend
+from send_to_telegram import send_signal
+from datetime import datetime, timedelta
+
+last_btc_signal_time = None  # защита от частых отправок
+
+def send_btc_confidence_signal():
+    global last_btc_signal_time
+
+    # Отправляем не чаще 1 раза в 60 минут
+    if last_btc_signal_time and datetime.now() - last_btc_signal_time < timedelta(minutes=60):
+        return
+
+    btc_data = fetch_btc_trend()
+    trend = btc_data.get("trend", "NEUTRAL")
+    confidence = btc_data.get("confidence", 0.5)
+    rsi_state = btc_data.get("rsi_state", "normal")
+    volatility = btc_data.get("volatility", "medium")
+
+    # --- Определение направления ---
+    if trend == "BULLISH":
+        direction = "Покупка (LONG)"
+    elif trend == "BEARISH":
+        direction = "Продажа (SHORT)"
+    else:
+        direction = "Нейтрально"
+
+    # --- Аналитика AI Insight ---
+    if confidence < 0.45:
+        ai_insight = "⚠️ Низкая уверенность — рынок нестабилен."
+    elif confidence < 0.7:
+        ai_insight = "Сигнал умеренной уверенности — тренд может продолжиться."
+    else:
+        ai_insight = "Тренд и сила совпадают — возможен продолжительный импульс."
+
+    # --- Формирование красивого сообщения ---
+    signal_message = f"""
+🤖 <b>FinAI BTC Market Update</b>
+
+💎 Актив: <code>BTCUSDT</code>
+📊 Таймфрейм: 1h
+📈 Направление: <b>{direction}</b>
+🌍 Глобальный тренд (1W): <b>{trend}</b>
+━━━━━━━━━━━━━━━━━━━
+💪 Confidence: {'█' * int(confidence*15)}{'░' * (15 - int(confidence*15))} {confidence*100:.0f}%
+⚡ Volatility: {'█' * int((0.5 if volatility=='medium' else 0.2 if volatility=='low' else 0.9)*15)}{'░' * (15 - int((0.5 if volatility=='medium' else 0.2 if volatility=='low' else 0.9)*15))}
+━━━━━━━━━━━━━━━━━━━
+📅 Дата: {datetime.now().strftime('%Y-%m-%d %H:%M')} (UTC+2)
+━━━━━━━━━━━━━━━━━━━
+<i>💬 AI Insight:</i>
+{ai_insight}
+<i>⚠️ Риск-менеджмент обязателен. Это не финансовый совет.</i>
+"""
+
+    # --- Отправляем сигнал ---
+    try:
+        send_signal(signal_message)
+        print("✅ Отправлен BTC Confidence сигнал.")
+        last_btc_signal_time = datetime.now()
+    except Exception as e:
+        print(f"❌ Ошибка при отправке BTC сигнала: {e}")
 
 def scheduler_loop():
     print("📅 Планировщик FinAI запущен (07:00–20:00 по Молдове).")
