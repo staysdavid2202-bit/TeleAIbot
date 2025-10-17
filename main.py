@@ -515,7 +515,38 @@ def analyze_market_and_pick(universe=None):
             print(f"⚠️ BTC слаб ({btc_strength:.2f}), анализ пропущен.")
             return []
         else:
-            print("⚠️ BTC слаб, но анализ разрешён адаптивным фильтром.")
+
+# ---------------- Анализ рынка и выбор -----------------
+def analyze_market_and_pick(universe=None):
+    import random
+    from datetime import datetime
+
+    btc = fetch_btc_trend()
+    print(f"📊 Тренд BTC: {btc.get('trend')}, сила: {btc.get('strength')}, волатильность: {btc.get('volatility')}")
+
+    # --- Умное ослабление фильтров BTC ---
+    btc_strength = btc.get("strength", 0)
+    btc_volatility = btc.get("volatility", "medium")
+
+    # Порог силы в зависимости от волатильности
+    if btc_volatility == "high":
+        min_strength = 0.25
+    elif btc_volatility == "medium":
+        min_strength = 0.12
+    else:
+        min_strength = 0.08
+
+    soft_mode = False
+
+    # Если тренд слабый — срабатывает Soft Mode
+    if btc_strength < min_strength:
+        chance = btc_strength * 4  # вероятность от 0 до ~0.6
+        if random.random() > chance:
+            print(f"⚠️ BTC слаб ({btc_strength:.2f}), анализ пропущен.")
+            return []
+        else:
+            print("🟡 BTC слаб, но анализ разрешён адаптивным фильтром (Soft Mode).")
+            soft_mode = True
 
     universe = universe or SYMBOLS
     candidates = []
@@ -536,12 +567,13 @@ def analyze_market_and_pick(universe=None):
         # --- Мягкий фильтр против тренда BTC ---
         if (btc_tr in ["bullish", "восходящий"] and res_dir == "short") or \
            (btc_tr in ["bearish", "нисходящий"] and res_dir == "long"):
-            weaken_prob = 0.4 + (btc_strength * 0.4)  # до 0.8 шанса не отбрасывать
-            if random.random() > weaken_prob:
+            weaken_prob = 0.4 + (btc_strength * 0.4)
+            if random.random() > weaken_prob and not soft_mode:
                 print(f"⚠️ {res['symbol']} отклонён — против тренда BTC ({btc.get('trend')})")
                 continue
             else:
-                print(f"⚙️ {res['symbol']} против тренда BTC, но допущен адаптивным фильтром.")
+                print(f"🟡 {res['symbol']} против тренда BTC, но допущен адаптивным фильтром.")
+                soft_mode = True
 
         # --- Проверка глобального тренда (1W) ---
         try:
@@ -553,12 +585,13 @@ def analyze_market_and_pick(universe=None):
                 print(f"✅ {symbol} согласуется с глобальным трендом ({global_tr})")
                 res["global_trend"] = global_tr
             else:
-                weaken_global = 0.5 + random.random() * 0.3  # до 80% шанс не отбрасывать
-                if random.random() > weaken_global:
+                weaken_global = 0.5 + random.random() * 0.3
+                if random.random() > weaken_global and not soft_mode:
                     print(f"⚠️ {symbol} пропущен — сигнал против глобального тренда ({global_tr})")
                     continue
                 else:
-                    print(f"⚙️ {symbol} против глобального тренда, но оставлен адаптивным фильтром.")
+                    print(f"🟡 {symbol} против глобального тренда, но оставлен адаптивным фильтром.")
+                    soft_mode = True
         except Exception as e:
             print(f"⚠️ Ошибка при проверке глобального тренда для {symbol}: {e}")
             continue
@@ -570,7 +603,27 @@ def analyze_market_and_pick(universe=None):
 
         try:
             if should_trade(res, prices, volumes, balance):
-                send_signal_to_telegram(res)
+                # --- Формирование Telegram сообщения ---
+                mode_label = "(Soft Mode)" if soft_mode else ""
+                signal_message = f"""
+🤖 <b>FinAI Signal Alert {mode_label}</b>
+
+💎 Актив: <code>{res.get('symbol')}</code>
+📈 Направление: <b>{res.get('direction')}</b>
+🌍 Глобальный тренд (1W): <b>{res.get('global_trend', '?')}</b>
+━━━━━━━━━━━━━━━━━━━
+📊 Momentum: {'█' * int(res.get('momentum',0)*15)}{'░' * (15 - int(res.get('momentum',0)*15))} {res.get('momentum',0)*100:.0f}%
+💪 Confidence: {'█' * int(res.get('confidence',0)*15)}{'░' * (15 - int(res.get('confidence',0)*15))} {res.get('confidence',0)*100:.0f}%
+⚡ Volatility: {'█' * int(res.get('volatility',0)*15)}{'░' * (15 - int(res.get('volatility',0)*15))} {res.get('volatility',0)*100:.0f}%
+━━━━━━━━━━━━━━━━━━━
+🧠 Модель: {res.get('model', '?')}
+📅 Дата: {datetime.now().strftime('%Y-%m-%d %H:%M')} (UTC+2)
+━━━━━━━━━━━━━━━━━━━
+<i>💬 AI Insight:</i>
+{"Soft Mode — рынок нестабилен, но присутствует потенциал." if soft_mode else "Тренд и сила совпадают — возможен продолжительный импульс."}
+<i>⚠️ Риск-менеджмент обязателен. Это не финансовый совет.</i>
+"""
+                send_signal_to_telegram({"symbol": symbol, "message": signal_message})
             else:
                 print(f"❌ {symbol}: сигнал не прошёл фильтрацию.")
                 continue
@@ -588,7 +641,6 @@ def analyze_market_and_pick(universe=None):
 
     print(f"✅ Найдено {len(top)} сигналов после адаптивной фильтрации.")
     return top
-
 # --------------- Scheduler loop ----------------
 import time
 import pytz
