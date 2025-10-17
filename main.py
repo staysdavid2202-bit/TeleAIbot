@@ -655,7 +655,7 @@ CHECK_INTERVAL = 30  # проверка каждые 30 секунд
 
 # ---------------- BTC Confidence Signal -----------------
 from btc_filter import fetch_btc_trend
-from send_to_telegram import send_signal
+from send_to_telegram import send_signal_to_telegram as send_signal
 from datetime import datetime, timedelta
 
 last_btc_signal_time = None  # защита от частых отправок
