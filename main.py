@@ -682,7 +682,7 @@ def send_btc_confidence_signal():
         direction = "Нейтрально"
 
     # --- Аналитика AI Insight ---
-    if confidence < 0.45:
+    if confidence < 0.1:
         ai_insight = "⚠️ Низкая уверенность — рынок нестабилен."
     elif confidence < 0.7:
         ai_insight = "Сигнал умеренной уверенности — тренд может продолжиться."
