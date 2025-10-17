@@ -641,145 +641,11 @@ import pytz
 import traceback
 from datetime import datetime
 import threading
+from send_to_telegram import send_signal_to_telegram as send_signal
 
 MOLDOVA_TZ = pytz.timezone("Europe/Chisinau")
 SEND_HOURS = list(range(7, 21))  # 07:00–20:00
 CHECK_INTERVAL = 30  # проверка каждые 30 секунд
-
-# ---------------- BTC Confidence Signal -----------------
-from btc_filter import fetch_btc_trend
-from send_to_telegram import send_signal_to_telegram as send_signal
-from datetime import datetime, timedelta
-
-last_btc_signal_time = None  # защита от частых отправок
-
-def send_btc_confidence_signal():
-    global last_btc_signal_time
-
-    # Отправляем не чаще 1 раза в 60 минут
-    if last_btc_signal_time and datetime.now() - last_btc_signal_time < timedelta(minutes=60):
-        return
-
-    btc_data = fetch_btc_trend()
-    trend = btc_data.get("trend", "NEUTRAL")
-    confidence = btc_data.get("confidence", 0.5)
-    rsi_state = btc_data.get("rsi_state", "normal")
-    volatility = btc_data.get("volatility", "medium")
-
-    # --- Определение направления ---
-    if trend == "BULLISH":
-        direction = "Покупка (LONG)"
-    elif trend == "BEARISH":
-        direction = "Продажа (SHORT)"
-    else:
-        direction = "Нейтрально"
-
-    # --- Аналитика AI Insight ---
-    if confidence < 0.1:
-        ai_insight = "⚠️ Низкая уверенность — рынок нестабилен."
-    elif confidence < 0.7:
-        ai_insight = "Сигнал умеренной уверенности — тренд может продолжиться."
-    else:
-        ai_insight = "Тренд и сила совпадают — возможен продолжительный импульс."
-
-    # --- Формирование красивого сообщения ---
-    signal_message = f"""
-🤖 <b>FinAI BTC Market Update</b>
-
-💎 Актив: <code>BTCUSDT</code>
-📊 Таймфрейм: 1h
-📈 Направление: <b>{direction}</b>
-🌍 Глобальный тренд (1W): <b>{trend}</b>
-━━━━━━━━━━━━━━━━━━━
-💪 Confidence: {'█' * int(confidence*15)}{'░' * (15 - int(confidence*15))} {confidence*100:.0f}%
-⚡ Volatility: {'█' * int((0.5 if volatility=='medium' else 0.2 if volatility=='low' else 0.9)*15)}{'░' * (15 - int((0.5 if volatility=='medium' else 0.2 if volatility=='low' else 0.9)*15))}
-━━━━━━━━━━━━━━━━━━━
-📅 Дата: {datetime.now().strftime('%Y-%m-%d %H:%M')} (UTC+2)
-━━━━━━━━━━━━━━━━━━━
-<i>💬 AI Insight:</i>
-{ai_insight}
-<i>⚠️ Риск-менеджмент обязателен. Это не финансовый совет.</i>
-"""
-
-    # --- Отправляем сигнал ---
-    try:
-        send_signal(signal_message)
-        print("✅ Отправлен BTC Confidence сигнал.")
-        last_btc_signal_time = datetime.now()
-    except Exception as e:
-        print(f"❌ Ошибка при отправке BTC сигнала: {e}")
-
-def scheduler_loop():
-    print("📅 Планировщик FinAI запущен (07:00–20:00 по Молдове).")
-    last_sent_hour = None
-
-    while True:
-        picks = []
-        try:
-            now_md = datetime.now(MOLDOVA_TZ)
-            hour = now_md.hour
-            minute = now_md.minute
-
-            print(f"[{now_md.strftime('%H:%M:%S')}] Проверка времени...")
-
-            if hour in SEND_HOURS and minute < 2 and last_sent_hour != hour:
-                print(f"⏰ [{now_md.strftime('%H:%M')}] Генерация сигналов...")
-                picks = analyze_market_and_pick()
-
-            # ✅ Проверка, чтобы избежать ошибки 'NoneType is not iterable'
-            if not picks or not isinstance(picks, list):
-                print(f"⚠️ Пропуск анализа — функция вернула {picks}")
-                picks = []
-
-            # --- Проверка тренда BTC перед анализом ---
-            btc_trend = fetch_btc_trend()
-
-            # Если тренд нейтральный или надёжность низкая — не отправляем сигналы
-            if btc_trend.get("trend") == "NEUTRAL" or btc_trend.get("reliability") == "LOW":
-                print("⚠️ Сигналы пропущены — рынок неопределённый или тренд слабый.")
-                picks = []
-            else:
-                filtered_picks = []
-                for res in picks:
-                    if btc_trend["trend"] == "Восходящий" and res["trend"] == "short":
-                        print(f"⚠️ Пропущен {res['symbol']} — BTC в восходящем тренде.")
-                        continue
-                    if btc_trend["trend"] == "Нисходящий" and res["trend"] == "long":
-                        print(f"⚠️ Пропущен {res['symbol']} — BTC в нисходящем тренде.")
-                        continue
-                        filtered_picks.append(res)
-                        picks = filtered_picks
-
-                if picks:
-                    print(f"✅ Найдено {len(picks)} сигналов.")
-                    FRIEND_CHAT_ID = 5859602362  # <-- вставь сюда Telegram ID друга
-
-                    for res in picks:
-                        symbol = res.get("symbol", "UNKNOWN")
-
-                        if should_send_signal(symbol, res):
-                            # Отправляем тебе
-                            send_signal_to_telegram(res)
-                            # Отправляем другу
-                            send_signal_to_telegram(res, chat_id=FRIEND_CHAT_ID)
-                        else:
-                            print(f"⚠️ Пропускаем повторный сигнал для {symbol}")
-
-                        time.sleep(1)
-                else:
-                    print("⚠️ Нет подходящих сигналов.")
-                last_sent_hour = hour
-
-            if hour not in SEND_HOURS:
-                last_sent_hour = None
-
-            time.sleep(CHECK_INTERVAL)
-
-        except Exception as e:
-            print("❌ Ошибка в планировщике:", e)
-            traceback.print_exc()
-            time.sleep(60)
-
 
 # ------------------- Антидубликат сигналов -------------------
 last_signals = {}
@@ -821,6 +687,63 @@ def should_send_signal(symbol, signal_data):
     last_sent_time[key] = now
     return True
 
+
+# ------------------- Основной планировщик -------------------
+def scheduler_loop():
+    print("📅 Планировщик FinAI запущен (07:00–20:00 по Молдове).")
+    last_sent_hour = None
+
+    while True:
+        picks = []
+        try:
+            now_md = datetime.now(MOLDOVA_TZ)
+            hour = now_md.hour
+            minute = now_md.minute
+
+            print(f"[{now_md.strftime('%H:%M:%S')}] Проверка времени...")
+
+            # Генерация сигналов раз в час
+            if hour in SEND_HOURS and minute < 2 and last_sent_hour != hour:
+                print(f"⏰ [{now_md.strftime('%H:%M')}] Генерация сигналов...")
+                picks = analyze_market_and_pick()
+
+            # ✅ Проверка, чтобы избежать ошибки 'NoneType is not iterable'
+            if not picks or not isinstance(picks, list):
+                print(f"⚠️ Пропуск анализа — функция вернула {picks}")
+                picks = []
+
+            # --- Если сигналы найдены, отправляем ---
+            if picks:
+                print(f"✅ Найдено {len(picks)} сигналов.")
+                FRIEND_CHAT_ID = 5859602362  # <-- Telegram ID друга (можно изменить)
+
+                for res in picks:
+                    symbol = res.get("symbol", "UNKNOWN")
+
+                    if should_send_signal(symbol, res):
+                        # Отправляем тебе
+                        send_signal(res)
+                        # Отправляем другу
+                        send_signal(res, chat_id=FRIEND_CHAT_ID)
+                    else:
+                        print(f"⚠️ Пропускаем повторный сигнал для {symbol}")
+
+                    time.sleep(1)
+            else:
+                print("⚠️ Нет подходящих сигналов.")
+
+            last_sent_hour = hour
+
+            # Сброс при выходе за пределы рабочего времени
+            if hour not in SEND_HOURS:
+                last_sent_hour = None
+
+            time.sleep(CHECK_INTERVAL)
+
+        except Exception as e:
+            print("❌ Ошибка в планировщике:", e)
+            traceback.print_exc()
+            time.sleep(60)
 
 # --------------- Запуск потоков и Flask ----------------
 def start_threads():
