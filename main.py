@@ -381,6 +381,7 @@ def decide_for_symbol(f):
     try:
         score, reasons = compute_composite_score(f)
         if score < SCORE_THRESHOLD:
+            print(f"⚠️ decide_for_symbol: {f['symbol']} score {score} < {SCORE_THRESHOLD}. reasons: {reasons}")
             return None
         direction = "LONG" if f['trend_h1']==1 else "SHORT"
         rr_info = calculate_sl_tp_high_rr(f, direction, base_risk_pct=0.007)
