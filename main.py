@@ -491,13 +491,31 @@ if 'send_signal_to_telegram' not in globals():
 
 # ---------------- Анализ рынка и выбор -----------------
 def analyze_market_and_pick(universe=None):
+    import random
+
     btc = fetch_btc_trend()
     print(f"📊 Тренд BTC: {btc.get('trend')}, сила: {btc.get('strength')}, волатильность: {btc.get('volatility')}")
 
-    # Проверка силы и волатильности до анализа
-    if btc.get("strength", 0) < 0.15 or btc.get("volatility") == "high":
-        print("⚠️ Рынок BTC слабый или слишком волатильный — анализ остановлен.")
-        return []
+    # --- Умное ослабление фильтров BTC ---
+    btc_strength = btc.get("strength", 0)
+    btc_volatility = btc.get("volatility", "medium")
+
+    # Порог силы и реакция на волатильность
+    if btc_volatility == "high":
+        min_strength = 0.25
+    elif btc_volatility == "medium":
+        min_strength = 0.12
+    else:
+        min_strength = 0.08
+
+    # Если тренд слишком слаб — шанс всё равно продолжить анализ
+    if btc_strength < min_strength:
+        chance = btc_strength * 4  # вероятность от 0 до ~0.6
+        if random.random() > chance:
+            print(f"⚠️ BTC слаб ({btc_strength:.2f}), анализ пропущен.")
+            return []
+        else:
+            print("⚠️ BTC слаб, но анализ разрешён адаптивным фильтром.")
 
     universe = universe or SYMBOLS
     candidates = []
@@ -512,33 +530,40 @@ def analyze_market_and_pick(universe=None):
         if not res:
             continue
 
-        # Проверка на противоречие тренду BTC (допускаем разные форматы тренда)
-        btc_tr = btc.get("trend","").lower()
-        res_dir = res.get("direction","").lower()
-        if (btc_tr in ["bullish","восходящий"] and res_dir == "short") or \
-           (btc_tr in ["bearish","нисходящий"] and res_dir == "long"):
-            print(f"⚠️ {res['symbol']} отклонён — против тренда BTC ({btc.get('trend')})")
-            continue
+        btc_tr = btc.get("trend", "").lower()
+        res_dir = res.get("direction", "").lower()
 
-        # Проверка глобального тренда (1W)
+        # --- Мягкий фильтр против тренда BTC ---
+        if (btc_tr in ["bullish", "восходящий"] and res_dir == "short") or \
+           (btc_tr in ["bearish", "нисходящий"] and res_dir == "long"):
+            weaken_prob = 0.4 + (btc_strength * 0.4)  # до 0.8 шанса не отбрасывать
+            if random.random() > weaken_prob:
+                print(f"⚠️ {res['symbol']} отклонён — против тренда BTC ({btc.get('trend')})")
+                continue
+            else:
+                print(f"⚙️ {res['symbol']} против тренда BTC, но допущен адаптивным фильтром.")
+
+        # --- Проверка глобального тренда (1W) ---
         try:
             global_tr = get_weekly_trend(symbol)
             signal_dir = res.get("direction", "").lower()
             gt = (global_tr or "").lower()
-            if (gt in ["bullish","восходящий"] and signal_dir == "long") or \
-               (gt in ["bearish","нисходящий"] and signal_dir == "short"):
+            if (gt in ["bullish", "восходящий"] and signal_dir == "long") or \
+               (gt in ["bearish", "нисходящий"] and signal_dir == "short"):
                 print(f"✅ {symbol} согласуется с глобальным трендом ({global_tr})")
-                # можно записать в res
                 res["global_trend"] = global_tr
             else:
-                print(f"⚠️ {symbol} пропущен — сигнал против глобального тренда ({global_tr})")
-                continue
+                weaken_global = 0.5 + random.random() * 0.3  # до 80% шанс не отбрасывать
+                if random.random() > weaken_global:
+                    print(f"⚠️ {symbol} пропущен — сигнал против глобального тренда ({global_tr})")
+                    continue
+                else:
+                    print(f"⚙️ {symbol} против глобального тренда, но оставлен адаптивным фильтром.")
         except Exception as e:
             print(f"⚠️ Ошибка при проверке глобального тренда для {symbol}: {e}")
-            # безопасно пропускаем при ошибке
             continue
 
-        # Проверяем сигнал фильтром перед отправкой
+        # --- Проверка сигнала фильтром перед отправкой ---
         balance = 1000
         prices = get_recent_prices(symbol)
         volumes = get_recent_volumes(symbol)
@@ -553,15 +578,16 @@ def analyze_market_and_pick(universe=None):
             print(f"Ошибка при фильтрации/отправке для {symbol}: {e}")
             continue
 
-        # Добавляем результат, если всё ок
+        # --- Добавляем результат, если всё ок ---
         est = res["score"] * (res.get("rr3", 0) or 1)
         candidates.append((est, res))
 
-        # Сортировка и выбор лучших
-        candidates.sort(key=lambda x: x[0], reverse=True)
-        top = [c[1] for c in candidates[:TOP_N]]
-        return top
+    # --- Сортировка и выбор лучших ---
+    candidates.sort(key=lambda x: x[0], reverse=True)
+    top = [c[1] for c in candidates[:TOP_N]]
 
+    print(f"✅ Найдено {len(top)} сигналов после адаптивной фильтрации.")
+    return top
 
 # --------------- Scheduler loop ----------------
 import time
