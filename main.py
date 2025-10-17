@@ -59,6 +59,15 @@ BYBIT_ORDERBOOK = "https://api.bybit.com/v5/market/orderbook"
 BYBIT_TICKER = "https://api.bybit.com/v5/market/tickers"
 BYBIT_FUNDING = "https://api.bybit.com/v5/market/funding/prev-funding-rate"
 
+# ---- Основные торгуемые пары ----
+SYMBOLS = [
+    "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT",
+    "ADAUSDT", "DOGEUSDT", "AVAXUSDT", "LINKUSDT", "TRXUSDT",
+    "MATICUSDT", "DOTUSDT", "LTCUSDT", "UNIUSDT"
+]
+
+print(f"✅ Используем {len(SYMBOLS)} пар для анализа: {', '.join(SYMBOLS)}")
+
 # Strategy params
 TFS = {"M15":"15", "H1":"60", "H4":"240", "D1":"D"}
 KLINE_LIMIT = 300
@@ -490,7 +499,7 @@ def analyze_market_and_pick(universe=None):
         print("⚠️ Рынок BTC слабый или слишком волатильный — анализ остановлен.")
         return []
 
-    universe = universe or fetch_symbols_usdt()
+    universe = universe or SYMBOLS
     candidates = []
     sample = universe[:MAX_CANDIDATES * 6]
 
