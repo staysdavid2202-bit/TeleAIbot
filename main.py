@@ -555,17 +555,6 @@ def analyze_market_and_pick(universe=None):
                 res["direction"] = "long"
                 res["ai_mode"] = "pullback_long"
 
-        # --- Мягкий фильтр против тренда BTC ---
-        if (btc_tr in ["bullish", "восходящий"] and res_dir == "short") or \
-           (btc_tr in ["bearish", "нисходящий"] and res_dir == "long"):
-            weaken_prob = 0.4 + (btc_strength * 0.4)
-            if random.random() > weaken_prob and not soft_mode:
-                print(f"⚠️ {res['symbol']} отклонён — против тренда BTC ({btc.get('trend')})")
-                continue
-            else:
-                print(f"🟡 {res['symbol']} против тренда BTC, но допущен адаптивным фильтром.")
-                soft_mode = True
-
         # --- Проверка глобального тренда (1W) ---
         try:
             global_tr = get_weekly_trend(symbol)
@@ -586,6 +575,10 @@ def analyze_market_and_pick(universe=None):
         except Exception as e:
             print(f"⚠️ Ошибка при проверке глобального тренда для {symbol}: {e}")
             continue
+
+        # --- BTC фильтр отключён ---
+        print(f"🚀 BTC фильтр отключён – {symbol} анализируется без ограничений (используется собственный тренд).")
+        soft_mode = False
 
         # --- Проверка сигнала фильтром перед отправкой ---
         balance = 1000
