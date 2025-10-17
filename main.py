@@ -537,6 +537,24 @@ def analyze_market_and_pick(universe=None):
         btc_tr = btc.get("trend", "").lower()
         res_dir = res.get("direction", "").lower()
 
+        # --- 🔹 Новый блок: анализ откатов (pullback continuation) ---
+        # Если BTC в нисходящем тренде, но цена альта делает локальный откат вверх
+        # и momentum/volatility указывают на возможное возобновление падения —
+        # бот может выдать сигнал на "short continuation"
+        if btc_tr in ["bearish", "нисходящий"]:
+            if f.get("momentum", 0) > 0.55 and f.get("rsi", 50) > 60:
+                print(f"📉 {symbol}: обнаружен откат вверх при медвежьем тренде BTC — возможен short continuation.")
+                res_dir = "short"
+                res["direction"] = "short"
+                res["ai_mode"] = "pullback_short"
+
+        elif btc_tr in ["bullish", "восходящий"]:
+            if f.get("momentum", 0) < 0.45 and f.get("rsi", 50) < 40:
+                print(f"📈 {symbol}: обнаружен откат вниз при бычьем тренде BTC — возможен long continuation.")
+                res_dir = "long"
+                res["direction"] = "long"
+                res["ai_mode"] = "pullback_long"
+
         # --- Мягкий фильтр против тренда BTC ---
         if (btc_tr in ["bullish", "восходящий"] and res_dir == "short") or \
            (btc_tr in ["bearish", "нисходящий"] and res_dir == "long"):
@@ -578,6 +596,15 @@ def analyze_market_and_pick(universe=None):
             if should_trade(res, prices, volumes, balance):
                 # --- Формирование Telegram сообщения ---
                 mode_label = "(Soft Mode)" if soft_mode else ""
+                if res.get("ai_mode") == "pullback_short":
+                    ai_note = "Откат вверх в медвежьем рынке — возможное продолжение падения."
+                elif res.get("ai_mode") == "pullback_long":
+                    ai_note = "Откат вниз в бычьем рынке — возможное продолжение роста."
+                elif soft_mode:
+                    ai_note = "Soft Mode — рынок нестабилен, но присутствует потенциал."
+                else:
+                    ai_note = "Тренд и сила совпадают — возможен продолжительный импульс."
+
                 signal_message = f"""
 🤖 <b>FinAI Signal Alert {mode_label}</b>
 
@@ -593,7 +620,7 @@ def analyze_market_and_pick(universe=None):
 📅 Дата: {datetime.now().strftime('%Y-%m-%d %H:%M')} (UTC+2)
 ━━━━━━━━━━━━━━━━━━━
 <i>💬 AI Insight:</i>
-{"Soft Mode — рынок нестабилен, но присутствует потенциал." if soft_mode else "Тренд и сила совпадают — возможен продолжительный импульс."}
+{ai_note}
 <i>⚠️ Риск-менеджмент обязателен. Это не финансовый совет.</i>
 """
                 send_signal_to_telegram({"symbol": symbol, "message": signal_message})
@@ -614,6 +641,7 @@ def analyze_market_and_pick(universe=None):
 
     print(f"✅ Найдено {len(top)} сигналов после адаптивной фильтрации.")
     return top
+
 # --------------- Scheduler loop ----------------
 import time
 import pytz
