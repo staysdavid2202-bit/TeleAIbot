@@ -1,4 +1,5 @@
 import requests
+import pandas as pd
 
 def fetch_klines(symbol, interval="15m", limit=200):
     """Загрузка свечей с Bybit."""
@@ -9,8 +10,7 @@ def fetch_klines(symbol, interval="15m", limit=200):
         r.raise_for_status()
         data = r.json()
         if "result" not in data or "list" not in data["result"]:
-            return []
-        import pandas as pd
+            return pd.DataFrame()
         df = pd.DataFrame(data["result"]["list"], columns=[
             "timestamp", "open", "high", "low", "close", "volume", "turnover"
         ])
@@ -22,4 +22,4 @@ def fetch_klines(symbol, interval="15m", limit=200):
         return df
     except Exception as e:
         print(f"fetch_klines error {symbol}", e)
-        return []
+        return pd.DataFrame()
