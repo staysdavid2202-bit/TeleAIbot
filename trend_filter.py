@@ -38,7 +38,7 @@ def get_weekly_trend(symbol: str):
     sma200 = df["sma200"].iloc[-1]
 
     if pd.isna(sma50) or pd.isna(sma200):
-    return "bullish"  # Если данных мало — не блокируем сигналы
+        return "bullish"  # Если данных мало — не блокируем сигналы
 
     # Если разница между SMA маленькая — считаем всё равно тренд восходящим
     if sma50 > sma200 * 0.99:
