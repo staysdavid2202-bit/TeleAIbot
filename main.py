@@ -232,6 +232,16 @@ def ema(series, period):
     """Вычисление экспоненциальной скользящей средней через pandas."""
     return series.ewm(span=period, adjust=False).mean()
 
+def rsi(series, period=14):
+    """Вычисление Relative Strength Index (RSI) через pandas."""
+    delta = series.diff()
+    gain = delta.clip(lower=0)
+    loss = -delta.clip(upper=0)
+    avg_gain = gain.rolling(period, min_periods=period).mean()
+    avg_loss = loss.rolling(period, min_periods=period).mean()
+    rs = avg_gain / (avg_loss + 1e-9)
+    return 100 - (100 / (1 + rs))
+
 # ----------------- Multi-TF features builder -------------------
 def build_advanced_features(symbol):
     try:
