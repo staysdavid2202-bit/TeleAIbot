@@ -227,113 +227,18 @@ def fetch_ticker_info(symbol):
         print(f"fetch_ticker_info error for {symbol}:", e)
     return {}
 
-# ----------------- Multi-TF features builder -------------------
-def build_advanced_features(symbol):
-    try:
-        df_m15 = fetch_klines(symbol, interval=TFS["M15"], limit=200)
-        df_h1 = fetch_klines(symbol, interval=TFS["H1"], limit=300)
-        df_h4 = fetch_klines(symbol, interval=TFS["H4"], limit=300)
-        df_d1 = fetch_klines(symbol, interval=TFS["D1"], limit=200)
-
-        if df_h1.empty or df_m15.empty:
-            return None
-
-        feat = {'symbol': symbol}
-        feat['price'] = float(df_h1['close'].iloc[-1])
-
-        # EMA тренды
-        feat['ema20_h1'] = float(ema(df_h1['close'],20).iloc[-1]) if len(df_h1) >= 20 else feat['price']
-        feat['ema50_h1'] = float(ema(df_h1['close'],50).iloc[-1]) if len(df_h1) >= 50 else feat['price']
-        feat['trend_h1'] = 1 if feat['ema20_h1'] > feat['ema50_h1'] else -1
-
-        feat['ema20_h4'] = float(ema(df_h4['close'],20).iloc[-1]) if len(df_h4) >= 20 else feat['ema20_h1']
-        feat['ema50_h4'] = float(ema(df_h4['close'],50).iloc[-1]) if len(df_h4) >= 50 else feat['ema50_h1']
-        feat['trend_h4'] = 1 if feat['ema20_h4'] > feat['ema50_h4'] else -1
-
-        feat['ema20_d1'] = float(ema(df_d1['close'],20).iloc[-1]) if len(df_d1) >= 20 else feat['ema20_h4']
-        feat['ema50_d1'] = float(ema(df_d1['close'],50).iloc[-1]) if len(df_d1) >= 50 else feat['ema50_h4']
-        feat['trend_d1'] = 1 if feat['ema20_d1'] > feat['ema50_d1'] else feat['trend_h4']
-
-        # RSI / ADX / ATR / объем
-        feat['rsi_h1'] = float(rsi(df_h1['close'],14).iloc[-1]) if len(df_h1) > 14 else 50.0
-        adx_ser = adx(df_h1,14) if len(df_h1) > 14 else pd.Series([0.0])
-        feat['adx_h1'] = float(adx_ser.iloc[-1]) if len(adx_ser) > 0 else 0.0
-        atr_ser = atr(df_h1,14) if len(df_h1) > 14 else pd.Series([feat['price']*0.01])
-        feat['atr_h1'] = float(atr_ser.iloc[-1]) if len(atr_ser) > 0 else feat['price']*0.01
-
-        vol_avg = df_h1['vol'].rolling(50).mean().iloc[-1] if len(df_h1) > 50 else float(df_h1['vol'].mean())
-        last_vol = float(df_h1['vol'].iloc[-1])
-        feat['vol_spike'] = 1 if last_vol > (vol_avg * VOLUME_SPIKE_MULT) else 0
-        feat['vol_ratio'] = last_vol / (vol_avg + 1e-9)
-
-        feat['rsi_m15'] = float(rsi(df_m15['close'],14).iloc[-1]) if len(df_m15) > 14 else 50.0
-
-        # Order-block H1
-        feat['order_block'] = detect_order_block(df_h1, lookback=40, range_pct=0.005) if not df_h1.empty else None
-
-        # Orderbook imbalance
-        ob = fetch_orderbook(symbol, limit=25)
-        feat['ob_imbalance'] = compute_ob_imbalance(ob, top_n=10) if ob else 0
-        feat['ob_conf'] = 1 if abs(feat['ob_imbalance']) > OB_IMBALANCE_THRESHOLD else 0
-
-        # Funding rate и open interest
-        feat['funding'] = fetch_funding_rate(symbol)  # теперь возвращает None при ошибке
-        try:
-            tick = fetch_ticker_info(symbol)
-            feat['open_interest'] = float(tick.get('openInterest',0))
-        except Exception:
-            feat['open_interest'] = 0
-
-        feat['ts'] = int(time.time())
-        feat['last_high'] = float(df_h1['high'].iloc[-1]) if not df_h1.empty else feat['price']
-        feat['last_low'] = float(df_h1['low'].iloc[-1]) if not df_h1.empty else feat['price']
-
-        return feat
-
-    except Exception as e:
-        print(f"build_advanced_features error for {symbol}:", e)
-        return None
-
-# ----------------- Order-block & imbalance ------------------
-def detect_order_block(df, lookback=30, range_pct=0.005):
-    try:
-        if df.empty or len(df) < lookback:
-            return None
-        sub = df.iloc[-lookback:]
-        idx_max = sub['high'].idxmax()
-        idx_min = sub['low'].idxmin()
-        if idx_max > idx_min:
-            price = sub.loc[idx_max,'high']
-            low = price*(1-range_pct); high = price*(1+range_pct)
-            return {"type":"supply","price":price,"zone":[low,high]}
-        else:
-            price = sub.loc[idx_min,'low']
-            low = price*(1-range_pct); high = price*(1+range_pct)
-            return {"type":"demand","price":price,"zone":[low,high]}
-    except Exception as e:
-        print("detect_order_block error", e)
-        return None
-
-def compute_ob_imbalance(ob, top_n=10):
-    try:
-        bids = ob.get('bids', [])[:top_n]
-        asks = ob.get('asks', [])[:top_n]
-        bid_sum = sum([float(b[1]) for b in bids]) if bids else 0.0
-        ask_sum = sum([float(a[1]) for a in asks]) if asks else 0.0
-        if bid_sum+ask_sum == 0:
-            return 0.0
-        return (bid_sum - ask_sum) / (bid_sum + ask_sum)
-    except Exception as e:
-        print("compute_ob_imbalance error", e)
-        return 0.0
+# ----------------- Technical indicators -----------------
+def ema(series, period):
+    """Вычисление экспоненциальной скользящей средней через pandas."""
+    return series.ewm(span=period, adjust=False).mean()
 
 # ----------------- Multi-TF features builder -------------------
 def build_advanced_features(symbol):
     try:
         df_m15 = fetch_klines(symbol, interval=TFS["M15"], limit=200)
-        df_h1 = fetch_klines(symbol, interval=TFS["H1"], limit=300)
-        df_h4 = fetch_klines(symbol, interval=TFS["H4"], limit=300)
-        df_d1 = fetch_klines(symbol, interval=TFS["D1"], limit=200)
+        df_h1  = fetch_klines(symbol, interval=TFS["H1"], limit=300)
+        df_h4  = fetch_klines(symbol, interval=TFS["H4"], limit=300)
+        df_d1  = fetch_klines(symbol, interval=TFS["D1"], limit=200)
 
         if df_h1.empty or df_m15.empty:
             return None
@@ -392,6 +297,39 @@ def build_advanced_features(symbol):
     except Exception as e:
         print("build_advanced_features error", e)
         return None
+
+# ----------------- Order-block & imbalance ------------------
+def detect_order_block(df, lookback=30, range_pct=0.005):
+    try:
+        if df.empty or len(df) < lookback:
+            return None
+        sub = df.iloc[-lookback:]
+        idx_max = sub['high'].idxmax()
+        idx_min = sub['low'].idxmin()
+        if idx_max > idx_min:
+            price = sub.loc[idx_max,'high']
+            low = price*(1-range_pct); high = price*(1+range_pct)
+            return {"type":"supply","price":price,"zone":[low,high]}
+        else:
+            price = sub.loc[idx_min,'low']
+            low = price*(1-range_pct); high = price*(1+range_pct)
+            return {"type":"demand","price":price,"zone":[low,high]}
+    except Exception as e:
+        print("detect_order_block error", e)
+        return None
+
+def compute_ob_imbalance(ob, top_n=10):
+    try:
+        bids = ob.get('bids', [])[:top_n]
+        asks = ob.get('asks', [])[:top_n]
+        bid_sum = sum([float(b[1]) for b in bids]) if bids else 0.0
+        ask_sum = sum([float(a[1]) for a in asks]) if asks else 0.0
+        if bid_sum+ask_sum == 0:
+            return 0.0
+        return (bid_sum - ask_sum) / (bid_sum + ask_sum)
+    except Exception as e:
+        print("compute_ob_imbalance error", e)
+        return 0.0
 
 # ----------------- Scoring & decision -------------------
 def compute_composite_score(f):
