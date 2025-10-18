@@ -23,54 +23,46 @@ from filters import should_trade
 from send_to_telegram import send_signal_to_telegram as send_signal
 
 # -----------------------------
-# Функция для получения всех USDT-фьючерсов с Bybit
+# Получение всех активных линейных USDT-фьючерсов с Bybit
 # -----------------------------
 def fetch_usdt_pairs():
     url = "https://api.bybit.com/v5/market/instruments-info"
     params = {"category": "linear", "instType": "contract"}
+
     try:
         response = requests.get(url, params=params, timeout=10)
+        response.raise_for_status()  # проверка статуса HTTP
 
-        # Проверяем статус запроса
-        if response.status_code != 200:
-            print("Ошибка запроса к Bybit, статус:", response.status_code)
+        data = response.json()
+
+        # Проверка структуры ответа
+        if data.get("retCode") != 0:
+            print("Ошибка API Bybit:", data.get("retMsg"))
             return []
 
-        # Пробуем распарсить JSON
-        try:
-            res = response.json()
-        except ValueError:
-            print("Ответ Bybit не является JSON:", response.text)
-            return []
-
-        if not isinstance(res, dict):
-            print("Ответ Bybit не является словарём:", res)
-            return []
-
-        # Проверяем retCode
-        if res.get("retCode") != 0:
-            print("Ошибка API Bybit:", res.get("retMsg"))
-            return []
-
-        result = res.get("result", [])
+        result = data.get("result", [])
         if not isinstance(result, list):
             print("Result не список:", result)
             return []
 
-        symbols = [item["symbol"] for item in result if item.get("status") == "Trading"]
+        # Берем только активные (Trading) линейные USDT-пары
+        usdt_pairs = [item["symbol"] for item in result if item.get("status") == "Trading"]
 
         # Сохраняем в JSON
         with open("bybit_usdt_futures.json", "w") as f:
-            json.dump(symbols, f, indent=4)
+            json.dump(usdt_pairs, f, indent=4)
 
-        return symbols
+        return usdt_pairs
 
+    except requests.HTTPError as e:
+        print("HTTP ошибка при запросе:", e)
+        return []
     except Exception as e:
         print("Ошибка при получении пар с Bybit:", e)
         return []
 
 # -----------------------------
-# Загружаем список USDT-пар, создаём файл если его нет
+# Загружаем список USDT-пар или создаём файл, если его нет
 # -----------------------------
 if not os.path.exists("bybit_usdt_futures.json"):
     print("Файл bybit_usdt_futures.json не найден. Получаем с Bybit...")
@@ -80,6 +72,7 @@ else:
         usdt_pairs = json.load(f)
 
 print(f"Загружено {len(usdt_pairs)} пар для анализа")
+print("Примеры пар:", usdt_pairs[:10])  # выводим первые 10 пар
 
 # Telebot
 try:
