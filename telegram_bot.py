@@ -9,7 +9,7 @@ from smart_money import build_advanced_features
 import telebot
 
 # <-- Вставь сюда свой BOT_TOKEN
-BOT_TOKEN = "YOUR_TELEGRAM_BOT_TOKEN_HERE"
+BOT_TOKEN = 8392536324:AAHr6dlM0hk9Qv5WP-rTOUsLMdvPBw6PtQw
 bot = telebot.TeleBot(BOT_TOKEN)
 
 # Порог для пропуска неопределённых пар
