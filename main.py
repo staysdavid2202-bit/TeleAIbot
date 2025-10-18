@@ -493,9 +493,6 @@ def analyze_market_and_pick(universe=None):
     import random
     from datetime import datetime
 
-    btc = fetch_btc_trend()
-    print(f"📊 Тренд BTC: {btc.get('trend')}, сила: {btc.get('strength')}, волатильность: {btc.get('volatility')}")
-
     # --- Умное ослабление фильтров BTC ---
     btc_strength = btc.get("strength", 0)
     btc_volatility = btc.get("volatility", "medium")
@@ -573,10 +570,6 @@ def analyze_market_and_pick(universe=None):
         except Exception as e:
             print(f"⚠️ Ошибка при проверке глобального тренда для {symbol}: {e}")
             continue
-
-        # --- BTC фильтр отключён ---
-        print(f"🚀 BTC фильтр отключён – {symbol} анализируется без ограничений (используется собственный тренд).")
-        soft_mode = False
 
         # --- Проверка сигнала фильтром перед отправкой ---
         balance = 1000
@@ -737,9 +730,7 @@ def scheduler_loop():
                 print(f"✅ Найдено {len(picks)} сигналов.")
                 FRIEND_CHAT_ID = 5859602362  # <-- Telegram ID друга (можно изменить)
             if picks and len(picks) > 0:
-                print(f"✅ Найдено {len(picks)} сигналов.")
-            else:
-                 print("⚠️ Нет подходящих сигналов (список пуст).")             
+                print(f"✅ Найдено {len(picks)} сигналов.")             
 
             last_sent_hour = hour
 
