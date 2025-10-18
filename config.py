@@ -2,7 +2,7 @@
 import pytz
 
 # Telegram
-BOT_TOKEN = "ВАШ_ТОКЕН_ТУТ"
+BOT_TOKEN = 8392536324:AAHr6dlM0hk9Qv5WP-rTOUsLMdvPBw6PtQw
 CHAT_ID = 5859602362  # твой Telegram ID
 FRIEND_CHAT_ID = 5859602362
 
