@@ -228,6 +228,9 @@ def fetch_ticker_info(symbol):
     return {}
 
 # ----------------- Technical indicators -----------------
+import pandas as pd
+import numpy as np
+
 def ema(series, period):
     """Вычисление экспоненциальной скользящей средней через pandas."""
     return series.ewm(span=period, adjust=False).mean()
@@ -241,6 +244,42 @@ def rsi(series, period=14):
     avg_loss = loss.rolling(period, min_periods=period).mean()
     rs = avg_gain / (avg_loss + 1e-9)
     return 100 - (100 / (1 + rs))
+
+def atr(df, period=14):
+    """Average True Range"""
+    high = df['high']
+    low = df['low']
+    close = df['close']
+    tr = pd.concat([
+        high - low,
+        (high - close.shift()).abs(),
+        (low - close.shift()).abs()
+    ], axis=1).max(axis=1)
+    return tr.rolling(period).mean()
+
+def adx(df, period=14):
+    """Average Directional Index"""
+    high = df['high']
+    low = df['low']
+    close = df['close']
+
+    up_move = high.diff()
+    down_move = low.diff()
+
+    plus_dm = ((up_move > down_move) & (up_move > 0)) * up_move
+    minus_dm = ((down_move > up_move) & (down_move > 0)) * down_move
+
+    tr = pd.concat([
+        high - low,
+        (high - close.shift()).abs(),
+        (low - close.shift()).abs()
+    ], axis=1).max(axis=1)
+
+    atr_val = tr.rolling(period).mean()
+    plus_di = 100 * (plus_dm.rolling(period).mean() / (atr_val + 1e-9))
+    minus_di = 100 * (minus_dm.rolling(period).mean() / (atr_val + 1e-9))
+    dx = 100 * (abs(plus_di - minus_di) / (plus_di + minus_di + 1e-9))
+    return dx.rolling(period).mean()
 
 # ----------------- Multi-TF features builder -------------------
 def build_advanced_features(symbol):
@@ -272,10 +311,8 @@ def build_advanced_features(symbol):
 
         # RSI/ADX/ATR/vol
         feat['rsi_h1'] = float(rsi(df_h1['close'],14).iloc[-1]) if len(df_h1)>14 else 50.0
-        adx_ser = adx(df_h1,14)
-        feat['adx_h1'] = float(adx_ser.iloc[-1]) if len(adx_ser)>0 else 0.0
-        atr_ser = atr(df_h1,14)
-        feat['atr_h1'] = float(atr_ser.iloc[-1]) if len(atr_ser)>0 else (feat['price']*0.01)
+        feat['adx_h1'] = float(adx(df_h1,14).iloc[-1]) if len(df_h1) > 14 else 0.0
+        feat['atr_h1'] = float(atr(df_h1,14).iloc[-1]) if len(df_h1) > 14 else (feat['price']*0.01)
 
         vol_avg = df_h1['vol'].rolling(50).mean().iloc[-1] if len(df_h1)>50 else float(df_h1['vol'].mean())
         last_vol = float(df_h1['vol'].iloc[-1])
