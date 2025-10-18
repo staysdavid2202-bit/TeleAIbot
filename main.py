@@ -493,30 +493,6 @@ def analyze_market_and_pick(universe=None):
     import random
     from datetime import datetime
 
-    # --- Умное ослабление фильтров BTC ---
-    btc_strength = btc.get("strength", 0)
-    btc_volatility = btc.get("volatility", "medium")
-
-    # Порог силы в зависимости от волатильности
-    if btc_volatility == "high":
-        min_strength = 0.25
-    elif btc_volatility == "medium":
-        min_strength = 0.12
-    else:
-        min_strength = 0.08
-
-    soft_mode = True
-
-    # Если тренд слабый — активируем Soft Mode, но не останавливаем анализ
-    if btc_strength < min_strength:
-        chance = btc_strength * 4  # вероятность от 0 до ~0.6
-        if random.random() > chance:
-            print(f"⚠️ BTC слаб ({btc_strength:.2f}), но Soft Mode разрешает продолжить анализ.")
-            soft_mode = True
-        else:
-            print("🟡 BTC слаб, анализ продолжается в режиме Soft Mode.")
-            soft_mode = True
-
     universe = universe or SYMBOLS
     candidates = []
     sample = universe[:MAX_CANDIDATES * 6]
@@ -529,9 +505,6 @@ def analyze_market_and_pick(universe=None):
         res = decide_for_symbol(f)
         if not res:
             continue
-
-        btc_tr = btc.get("trend", "").lower()
-        res_dir = res.get("direction", "").lower()
 
         # --- 🔹 Новый блок: анализ откатов (pullback continuation) ---
         # Если BTC в нисходящем тренде, но цена альта делает локальный откат вверх
