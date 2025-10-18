@@ -576,24 +576,6 @@ def analyze_market_and_pick(universe=None):
         if not res:
             continue
 
-        # --- 🔹 Новый блок: анализ откатов (pullback continuation) ---
-        # Если BTC в нисходящем тренде, но цена альта делает локальный откат вверх
-        # и momentum/volatility указывают на возможное возобновление падения —
-        # бот может выдать сигнал на "short continuation"
-        if btc_tr in ["bearish", "нисходящий"]:
-            if f.get("momentum", 0) > 0.55 and f.get("rsi", 50) > 60:
-                print(f"📉 {symbol}: обнаружен откат вверх при медвежьем тренде BTC — возможен short continuation.")
-                res_dir = "short"
-                res["direction"] = "short"
-                res["ai_mode"] = "pullback_short"
-
-        elif btc_tr in ["bullish", "восходящий"]:
-            if f.get("momentum", 0) < 0.45 and f.get("rsi", 50) < 40:
-                print(f"📈 {symbol}: обнаружен откат вниз при бычьем тренде BTC — возможен long continuation.")
-                res_dir = "long"
-                res["direction"] = "long"
-                res["ai_mode"] = "pullback_long"
-
         # --- Проверка глобального тренда (1W) ---
         try:
             global_tr = get_weekly_trend(symbol)
