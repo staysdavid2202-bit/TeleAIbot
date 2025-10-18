@@ -222,6 +222,8 @@ def safe_get(url, params=None, timeout=12):
         return {}
 
 # -------------- Market helpers -------------------
+import pandas as pd
+
 def fetch_symbols_usdt():
     try:
         j = safe_get(BYBIT_INSTRUMENTS, params={"category":"linear"})
@@ -231,7 +233,7 @@ def fetch_symbols_usdt():
             return ["BTCUSDT","ETHUSDT","SOLUSDT","XRPUSDT","BNBUSDT"]
         return syms
     except Exception as e:
-        print("fetch_symbols_usdt error", e)
+        print("fetch_symbols_usdt error:", e)
         return ["BTCUSDT","ETHUSDT","SOLUSDT","XRPUSDT","BNBUSDT"]
 
 def fetch_klines(symbol, interval="60", limit=200):
@@ -248,16 +250,17 @@ def fetch_klines(symbol, interval="60", limit=200):
         ])
         return df
     except Exception as e:
-        print("fetch_klines error", e)
+        print(f"fetch_klines error for {symbol}:", e)
         return pd.DataFrame()
 
 def fetch_orderbook(symbol, limit=25):
     try:
         j = safe_get(BYBIT_ORDERBOOK, params={"category":"linear","symbol":symbol,"limit":limit})
         res = j.get("result", {}).get("list", [])
-        if res: return res[0]
+        if res:
+            return res[0]
     except Exception as e:
-        print("fetch_orderbook error", e)
+        print(f"fetch_orderbook error for {symbol}:", e)
     return {}
 
 def fetch_funding_rate(symbol):
@@ -265,56 +268,88 @@ def fetch_funding_rate(symbol):
         j = safe_get(BYBIT_FUNDING, params={"symbol":symbol})
         lst = j.get("result", {}).get("list", [])
         if lst:
-            return float(lst[-1].get("fundingRate", 0))
+            rate = lst[-1].get("fundingRate")
+            return float(rate) if rate is not None else None
     except Exception as e:
-        print("fetch_funding_rate error", e)
-    return 0.0
+        print(f"fetch_funding_rate error for {symbol}:", e)
+    return None
 
 def fetch_ticker_info(symbol):
     try:
         j = safe_get(BYBIT_TICKER, params={"category":"linear","symbol":symbol})
-        lst = j.get("result",{}).get("list",[{}])
-        return lst[0] if lst else {}
+        lst = j.get("result", {}).get("list", [])
+        if lst:
+            return lst[0]
     except Exception as e:
-        print("fetch_ticker_info error", e)
-        return {}
+        print(f"fetch_ticker_info error for {symbol}:", e)
+    return {}
 
-# ----------------- Indicators --------------------
-def ema(series, n): return series.ewm(span=n, adjust=False).mean()
-def sma(series, n): return series.rolling(n).mean()
+# ----------------- Multi-TF features builder -------------------
+def build_advanced_features(symbol):
+    try:
+        df_m15 = fetch_klines(symbol, interval=TFS["M15"], limit=200)
+        df_h1 = fetch_klines(symbol, interval=TFS["H1"], limit=300)
+        df_h4 = fetch_klines(symbol, interval=TFS["H4"], limit=300)
+        df_d1 = fetch_klines(symbol, interval=TFS["D1"], limit=200)
 
-def rsi(series, n=14):
-    delta = series.diff()
-    up = delta.clip(lower=0)
-    down = -delta.clip(upper=0)
-    ma_up = up.ewm(com=n-1, adjust=False).mean()
-    ma_down = down.ewm(com=n-1, adjust=False).mean()
-    rs = ma_up / (ma_down + 1e-9)
-    return 100 - 100 / (1 + rs)
+        if df_h1.empty or df_m15.empty:
+            return None
 
-def atr(df, n=14):
-    if df.empty or len(df) < 2:
-        return pd.Series([0])
-    hi = df['high']; lo = df['low']; cl = df['close']
-    hl = hi - lo
-    hc = (hi - cl.shift()).abs()
-    lc = (lo - cl.shift()).abs()
-    tr = pd.concat([hl, hc, lc], axis=1).max(axis=1)
-    return tr.rolling(n).mean()
+        feat = {'symbol': symbol}
+        feat['price'] = float(df_h1['close'].iloc[-1])
 
-def adx(df, n=14):
-    if df.empty or len(df) < n+5:
-        return pd.Series([0])
-    hi, lo, cl = df['high'], df['low'], df['close']
-    up = hi.diff(); dn = -lo.diff()
-    plus_dm = np.where((up>dn)&(up>0), up, 0.0)
-    minus_dm = np.where((dn>up)&(dn>0), dn, 0.0)
-    tr = pd.concat([(hi-lo), (hi-cl.shift()).abs(), (lo-cl.shift()).abs()], axis=1).max(axis=1)
-    atr_ = tr.rolling(n).mean()
-    plus_di = 100*(pd.Series(plus_dm).rolling(n).sum()/ (atr_ + 1e-9))
-    minus_di = 100*(pd.Series(minus_dm).rolling(n).sum()/ (atr_ + 1e-9))
-    dx = (abs(plus_di-minus_di)/(plus_di+minus_di+1e-9))*100
-    return dx.rolling(n).mean()
+        # EMA тренды
+        feat['ema20_h1'] = float(ema(df_h1['close'],20).iloc[-1]) if len(df_h1) >= 20 else feat['price']
+        feat['ema50_h1'] = float(ema(df_h1['close'],50).iloc[-1]) if len(df_h1) >= 50 else feat['price']
+        feat['trend_h1'] = 1 if feat['ema20_h1'] > feat['ema50_h1'] else -1
+
+        feat['ema20_h4'] = float(ema(df_h4['close'],20).iloc[-1]) if len(df_h4) >= 20 else feat['ema20_h1']
+        feat['ema50_h4'] = float(ema(df_h4['close'],50).iloc[-1]) if len(df_h4) >= 50 else feat['ema50_h1']
+        feat['trend_h4'] = 1 if feat['ema20_h4'] > feat['ema50_h4'] else -1
+
+        feat['ema20_d1'] = float(ema(df_d1['close'],20).iloc[-1]) if len(df_d1) >= 20 else feat['ema20_h4']
+        feat['ema50_d1'] = float(ema(df_d1['close'],50).iloc[-1]) if len(df_d1) >= 50 else feat['ema50_h4']
+        feat['trend_d1'] = 1 if feat['ema20_d1'] > feat['ema50_d1'] else feat['trend_h4']
+
+        # RSI / ADX / ATR / объем
+        feat['rsi_h1'] = float(rsi(df_h1['close'],14).iloc[-1]) if len(df_h1) > 14 else 50.0
+        adx_ser = adx(df_h1,14) if len(df_h1) > 14 else pd.Series([0.0])
+        feat['adx_h1'] = float(adx_ser.iloc[-1]) if len(adx_ser) > 0 else 0.0
+        atr_ser = atr(df_h1,14) if len(df_h1) > 14 else pd.Series([feat['price']*0.01])
+        feat['atr_h1'] = float(atr_ser.iloc[-1]) if len(atr_ser) > 0 else feat['price']*0.01
+
+        vol_avg = df_h1['vol'].rolling(50).mean().iloc[-1] if len(df_h1) > 50 else float(df_h1['vol'].mean())
+        last_vol = float(df_h1['vol'].iloc[-1])
+        feat['vol_spike'] = 1 if last_vol > (vol_avg * VOLUME_SPIKE_MULT) else 0
+        feat['vol_ratio'] = last_vol / (vol_avg + 1e-9)
+
+        feat['rsi_m15'] = float(rsi(df_m15['close'],14).iloc[-1]) if len(df_m15) > 14 else 50.0
+
+        # Order-block H1
+        feat['order_block'] = detect_order_block(df_h1, lookback=40, range_pct=0.005) if not df_h1.empty else None
+
+        # Orderbook imbalance
+        ob = fetch_orderbook(symbol, limit=25)
+        feat['ob_imbalance'] = compute_ob_imbalance(ob, top_n=10) if ob else 0
+        feat['ob_conf'] = 1 if abs(feat['ob_imbalance']) > OB_IMBALANCE_THRESHOLD else 0
+
+        # Funding rate и open interest
+        feat['funding'] = fetch_funding_rate(symbol)  # теперь возвращает None при ошибке
+        try:
+            tick = fetch_ticker_info(symbol)
+            feat['open_interest'] = float(tick.get('openInterest',0))
+        except Exception:
+            feat['open_interest'] = 0
+
+        feat['ts'] = int(time.time())
+        feat['last_high'] = float(df_h1['high'].iloc[-1]) if not df_h1.empty else feat['price']
+        feat['last_low'] = float(df_h1['low'].iloc[-1]) if not df_h1.empty else feat['price']
+
+        return feat
+
+    except Exception as e:
+        print(f"build_advanced_features error for {symbol}:", e)
+        return None
 
 # ----------------- Order-block & imbalance ------------------
 def detect_order_block(df, lookback=30, range_pct=0.005):
