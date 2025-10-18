@@ -706,30 +706,25 @@ def scheduler_loop():
                 print(f"⏰ [{now_md.strftime('%H:%M')}] Генерация сигналов...")
                 picks = analyze_market_and_pick()
 
-            # ✅ Проверка, чтобы избежать ошибки 'NoneType is not iterable'
-            if not picks or not isinstance(picks, list):
-                print(f"⚠️ Пропуск анализа — функция вернула {picks}")
+            # ✅ Проверка результата анализа
+            if picks is None:
+                print("⚠️ analyze_market_and_pick() вернула None — пропуск.")
+                picks = []
+            elif isinstance(picks, dict):
+                # если функция вернула один сигнал в виде словаря — превращаем в список
+                picks = [picks]
+            elif not isinstance(picks, list):
+                print(f"⚠️ Неожиданный тип данных от анализа: {type(picks)} → {picks}")
                 picks = []
 
             # --- Если сигналы найдены, отправляем ---
             if picks:
                 print(f"✅ Найдено {len(picks)} сигналов.")
                 FRIEND_CHAT_ID = 5859602362  # <-- Telegram ID друга (можно изменить)
-
-                for res in picks:
-                    symbol = res.get("symbol", "UNKNOWN")
-
-                    if should_send_signal(symbol, res):
-                        # Отправляем тебе
-                        send_signal(res)
-                        # Отправляем другу
-                        send_signal(res, chat_id=FRIEND_CHAT_ID)
-                    else:
-                        print(f"⚠️ Пропускаем повторный сигнал для {symbol}")
-
-                    time.sleep(1)
-            else:
-                print("⚠️ Нет подходящих сигналов.")
+            if picks and len(picks) > 0:
+                print(f"✅ Найдено {len(picks)} сигналов.")
+             else:
+                 print("⚠️ Нет подходящих сигналов (список пуст).")             
 
             last_sent_hour = hour
 
