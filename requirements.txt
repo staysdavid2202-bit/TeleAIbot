@@ -5,3 +5,6 @@ python-telegram-bot==20.7
 pytz
 ta
 pybit
+pyTelegramBotAPI
+matplotlib
+mplfinance
