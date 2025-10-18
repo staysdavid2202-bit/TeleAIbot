@@ -109,78 +109,70 @@ BYBIT_ORDERBOOK = "https://api.bybit.com/v5/market/orderbook"
 BYBIT_TICKER = "https://api.bybit.com/v5/market/tickers"
 BYBIT_FUNDING = "https://api.bybit.com/v5/market/funding/prev-funding-rate"
 
-# ---- Основные торгуемые пары ----
+# ---- Основные торгуемые пары (каждая в отдельном списке) ----
 SYMBOLS = [
-    [
-    "BTCUSDT",
-    "ETHUSDT",
-    "BNBUSDT",
-    "SOLUSDT",
-    "ADAUSDT",
-    "DOGEUSDT",
-    "XRPUSDT",
-    "DOTUSDT",
-    "LTCUSDT",
-    "MATICUSDT",
-    "AVAXUSDT",
-    "LINKUSDT",
-    "ATOMUSDT",
-    "FILUSDT",
-    "TRXUSDT",
-    "UNIUSDT",
-    "AAVEUSDT",
-    "ALGOUSDT",
-    "AXSUSDT",
-    "BCHUSDT",
-    "CHZUSDT",
-    "COMPUSDT",
-    "CRVUSDT",
-    "CROUSDT",
-    "DOGEUSDT",
-    "DOTUSDT",
-    "DYDXUSDT",
-    "ENJUSDT",
-    "EOSUSDT",
-    "ETCUSDT",
-    "FTMUSDT",
-    "GRTUSDT",
-    "ICPUSDT",
-    "IMXUSDT",
-    "IOTAUSDT",
-    "KAVAUSDT",
-    "KSMUSDT",
-    "LENDUSDT",
-    "LTCUSDT",
-    "MANAUSDT",
-    "MKRUSDT",
-    "NEARUSDT",
-    "NEOUSDT",
-    "NKNUSDT",
-    "OCEANUSDT",
-    "OGNUSDT",
-    "OMGUSDT",
-    "ONEUSDT",
-    "OPUSDT",
-    "PAXGUSDT",
-    "PENDLEUSDT",
-    "QTUMUSDT",
-    "RUNEUSDT",
-    "SANDUSDT",
-    "SHIBUSDT",
-    "SUSHIUSDT",
-    "TLMUSDT",
-    "TOMOUSDT",
-    "TRXUSDT",
-    "UNIUSDT",
-    "USDTUSDT",
-    "VETUSDT",
-    "WAVESUSDT",
-    "XLMUSDT",
-    "XMRUSDT",
-    "XRPUSDT",
-    "YFIUSDT",
-    "ZRXUSDT"
-    ]
+    ["BTCUSDT"],
+    ["ETHUSDT"],
+    ["BNBUSDT"],
+    ["SOLUSDT"],
+    ["ADAUSDT"],
+    ["DOGEUSDT"],
+    ["XRPUSDT"],
+    ["DOTUSDT"],
+    ["LTCUSDT"],
+    ["MATICUSDT"],
+    ["AVAXUSDT"],
+    ["LINKUSDT"],
+    ["ATOMUSDT"],
+    ["FILUSDT"],
+    ["TRXUSDT"],
+    ["UNIUSDT"],
+    ["AAVEUSDT"],
+    ["ALGOUSDT"],
+    ["AXSUSDT"],
+    ["BCHUSDT"],
+    ["CHZUSDT"],
+    ["COMPUSDT"],
+    ["CRVUSDT"],
+    ["CROUSDT"],
+    ["DYDXUSDT"],
+    ["ENJUSDT"],
+    ["EOSUSDT"],
+    ["ETCUSDT"],
+    ["FTMUSDT"],
+    ["GRTUSDT"],
+    ["ICPUSDT"],
+    ["IMXUSDT"],
+    ["IOTAUSDT"],
+    ["KAVAUSDT"],
+    ["KSMUSDT"],
+    ["LENDUSDT"],
+    ["MANAUSDT"],
+    ["MKRUSDT"],
+    ["NEARUSDT"],
+    ["NEOUSDT"],
+    ["NKNUSDT"],
+    ["OCEANUSDT"],
+    ["OGNUSDT"],
+    ["OMGUSDT"],
+    ["ONEUSDT"],
+    ["OPUSDT"],
+    ["PAXGUSDT"],
+    ["PENDLEUSDT"],
+    ["QTUMUSDT"],
+    ["RUNEUSDT"],
+    ["SANDUSDT"],
+    ["SHIBUSDT"],
+    ["SUSHIUSDT"],
+    ["TLMUSDT"],
+    ["TOMOUSDT"],
+    ["USDTUSDT"],
+    ["VETUSDT"],
+    ["WAVESUSDT"],
+    ["XLMUSDT"],
+    ["XMRUSDT"],
+    ["YFIUSDT"],
+    ["ZRXUSDT"]
 ]
 
 print(f"✅ Используем {len(SYMBOLS)} пар для анализа: {', '.join(SYMBOLS)}")
@@ -571,24 +563,37 @@ def decide_for_symbol(f):
 def format_adv_message(res):
     symbol = res.get("symbol", "?")
     tf = res.get("tf", "1H")
-    direction = res.get("direction", "?").upper()
-    trend = res.get("global_trend", "?")
-    momentum = res.get("momentum", 0.8)
-    confidence = res.get("confidence", 0.75)
-    volatility = res.get("volatility", 0.3)
+    direction = res.get("direction")
+    trend = res.get("global_trend")
+    
+    # Если направление или тренд не определены — пропускаем
+    if direction not in ["long", "short"] or trend not in ["bullish", "bearish"]:
+        return None
+
+    direction_str = direction.upper()
+    trend_str = trend.capitalize()
+
+    momentum = float(res.get("momentum", 0.8))
+    confidence = float(res.get("confidence", 0.75))
+    volatility = float(res.get("volatility", 0.3))
     model = res.get("model", "NeuralTrend v3.2")
+
+    # Ограничиваем значения прогресс-бара между 0 и 15
+    def progress_bar(value):
+        n = min(max(int(value*15), 0), 15)
+        return '█'*n + '░'*(15-n)
 
     msg = f"""
 🤖 <b>FinAI Signal Alert</b>
 
 💎 Актив: <code>{symbol}</code>
 📊 Таймфрейм: {tf}
-📈 Направление: <b>{direction}</b>
-🌍 Глобальный тренд (1W): <b>{trend}</b>
+📈 Направление: <b>{direction_str}</b>
+🌍 Глобальный тренд (1W): <b>{trend_str}</b>
 ━━━━━━━━━━━━━━━━━━━
-📊 Momentum: {'█' * int(momentum*15)}{'░' * (15 - int(momentum*15))} {momentum*100:.0f}%
-💪 Confidence: {'█' * int(confidence*15)}{'░' * (15 - int(confidence*15))} {confidence*100:.0f}%
-⚡ Volatility: {'█' * int(volatility*15)}{'░' * (15 - int(volatility*15))} {volatility*100:.0f}%
+📊 Momentum: {progress_bar(momentum)} {momentum*100:.0f}%
+💪 Confidence: {progress_bar(confidence)} {confidence*100:.0f}%
+⚡ Volatility: {progress_bar(volatility)} {volatility*100:.0f}%
 ━━━━━━━━━━━━━━━━━━━
 🧠 Модель: {model}
 📅 Дата: {datetime.now().strftime('%Y-%m-%d %H:%M')} (UTC+2)
@@ -599,7 +604,7 @@ def format_adv_message(res):
 """
     return msg
 
-# простые wrappers (если у тебя такие уже есть — используй свои)
+# простые wrappers
 def get_recent_prices(symbol, n=100):
     df = fetch_klines(symbol, interval=TFS["H1"], limit=n)
     return df['close'].tolist() if not df.empty else []
@@ -608,19 +613,24 @@ def get_recent_volumes(symbol, n=100):
     df = fetch_klines(symbol, interval=TFS["H1"], limit=n)
     return df['vol'].tolist() if not df.empty else []
 
-# если отправку вынес в внешний модуль, можно вызывать его; иначе используем локальную реализацию
+# локальная отправка в Telegram
 def send_signal_to_telegram_local(res, chat_id=CHAT_ID):
     if not bot:
         print("Bot not configured - cannot send message")
         return
+
     msg = format_adv_message(res)
+    if msg is None:
+        print(f"⚠️ Пропуск {res.get('symbol', '?')} — направление или тренд не определены")
+        return
+
     try:
         prices = get_recent_prices(res["symbol"])
         direction = res.get("direction", "long")
-        # generate_signal_chart должен быть в проекте; если нет — пропускаем изображение
         chart_buf = None
+
         try:
-            chart_buf = generate_signal_chart(res["symbol"], prices, direction)  # если функция есть
+            chart_buf = generate_signal_chart(res["symbol"], prices, direction)
         except Exception:
             chart_buf = None
 
@@ -632,11 +642,12 @@ def send_signal_to_telegram_local(res, chat_id=CHAT_ID):
             bot.send_message(chat_id, msg, parse_mode="HTML")
             if FRIEND_CHAT_ID:
                 bot.send_message(FRIEND_CHAT_ID, msg, parse_mode="HTML")
+
         print(f"✅ Signal sent for {res['symbol']} to {chat_id} and friend ({FRIEND_CHAT_ID})")
     except Exception as e:
         print(f"❌ Ошибка при отправке сигнала: {e}")
 
-# используем внешний если есть
+# используем внешний, если он есть
 if 'send_signal_to_telegram' not in globals():
     send_signal_to_telegram = send_signal_to_telegram_local
 
