@@ -29,19 +29,38 @@ def fetch_usdt_pairs():
     url = "https://api.bybit.com/v5/market/instruments-info"
     params = {"category": "linear", "instType": "contract"}
     try:
-        res = requests.get(url, params=params).json()
+        response = requests.get(url, params=params, timeout=10)
+
+        # Проверяем статус запроса
+        if response.status_code != 200:
+            print("Ошибка запроса к Bybit, статус:", response.status_code)
+            return []
+
+        # Пробуем распарсить JSON
+        try:
+            res = response.json()
+        except ValueError:
+            print("Ответ Bybit не является JSON:", response.text)
+            return []
+
+        # Проверяем retCode
+        if res.get("retCode") != 0:
+            print("Ошибка API Bybit:", res.get("retMsg"))
+            return []
+
         symbols = [item["symbol"] for item in res.get("result", []) if item.get("status") == "Trading"]
+
         # Сохраняем в JSON
         with open("bybit_usdt_futures.json", "w") as f:
             json.dump(symbols, f, indent=4)
+
         return symbols
+
     except Exception as e:
         print("Ошибка при получении пар с Bybit:", e)
         return []
-
-# -----------------------------
+        
 # Загружаем список USDT-пар, создаём файл если его нет
-# -----------------------------
 if not os.path.exists("bybit_usdt_futures.json"):
     print("Файл bybit_usdt_futures.json не найден. Получаем с Bybit...")
     usdt_pairs = fetch_usdt_pairs()
@@ -50,22 +69,6 @@ else:
         usdt_pairs = json.load(f)
 
 print(f"Загружено {len(usdt_pairs)} пар для анализа")
-
-# -----------------------------
-# Дальше идет твоя основная логика бота
-# -----------------------------
-
-# Telebot
-try:
-    import telebot
-except Exception as e:
-    print("Ошибка импорта telebot. Установите pyTelegramBotAPI в requirements.")
-    raise
-
-# Flask (если используется)
-from flask import Flask, jsonify
-
-# Теперь usdt_pairs можно использовать в любых функциях анализа и отправки сигналов
 
 # Telebot
 try:
