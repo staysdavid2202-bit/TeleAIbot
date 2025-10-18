@@ -829,11 +829,10 @@ def should_send_signal(symbol, signal_data):
     last_sent_time[key] = now
     return True
 
-
 # ------------------- Основной планировщик -------------------
 def scheduler_loop():
     print("📅 Планировщик FinAI запущен (07:00–20:00 по Молдове).")
-    last_sent_hour = None
+    last_sent_time = None  # теперь храним кортеж (hour, minute)
 
     while True:
         picks = []
@@ -844,18 +843,18 @@ def scheduler_loop():
 
             print(f"[{now_md.strftime('%H:%M:%S')}] Проверка времени...")
 
-            # Генерация сигналов раз в час
-            if hour in SEND_HOURS and minute < 2 and last_sent_hour != hour:
+            # Генерация сигналов каждые 10 минут
+            if minute % 10 == 0 and last_sent_time != (hour, minute):
                 print(f"⏰ [{now_md.strftime('%H:%M')}] Генерация сигналов...")
                 picks = analyze_market_and_pick()
+                last_sent_time = (hour, minute)  # обновляем, чтобы не повторять сигнал
 
             # ✅ Проверка результата анализа
             if picks is None:
                 print("⚠️ analyze_market_and_pick() вернула None — пропуск.")
                 picks = []
             elif isinstance(picks, dict):
-                # если функция вернула один сигнал в виде словаря — превращаем в список
-                picks = [picks]
+                picks = [picks]  # если вернулся один сигнал — превращаем в список
             elif not isinstance(picks, list):
                 print(f"⚠️ Неожиданный тип данных от анализа: {type(picks)} → {picks}")
                 picks = []
@@ -864,14 +863,10 @@ def scheduler_loop():
             if picks:
                 print(f"✅ Найдено {len(picks)} сигналов.")
                 FRIEND_CHAT_ID = 5859602362  # <-- Telegram ID друга (можно изменить)
-            if picks and len(picks) > 0:
-                print(f"✅ Найдено {len(picks)} сигналов.")             
-
-            last_sent_hour = hour
 
             # Сброс при выходе за пределы рабочего времени
             if hour not in SEND_HOURS:
-                last_sent_hour = None
+                last_sent_time = None
 
             time.sleep(CHECK_INTERVAL)
 
