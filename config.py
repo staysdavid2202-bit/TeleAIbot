@@ -5,15 +5,15 @@ from pytz import timezone
 # -------------------------------
 # Telegram Bot
 # -------------------------------
-BOT_TOKEN = 8392536324:AAHr6dlM0hk9Qv5WP-rTOUsLMdvPBw6PtQw
+BOT_TOKEN = "8392536324:AAHr6dlM0hk9Qv5WP-rTOUsLMdvPBw6PtQw"
 CHAT_ID = 5859602362                  
 FRIEND_CHAT_ID = 987654321            
 
 # -------------------------------
 # Bybit API
 # -------------------------------
-BYBIT_API_KEY = DlINicnaZo2HtLVBV4
-BYBIT_API_SECRET = fe5mKO99uJlo7M9xEOrdOKW0hVPBQk45OPJy
+BYBIT_API_KEY = "DlINicnaZo2HtLVBV4"
+BYBIT_API_SECRET = "fe5mKO99uJlo7M9xEOrdOKW0hVPBQk45OPJy"
 
 # -------------------------------
 # Основные настройки
