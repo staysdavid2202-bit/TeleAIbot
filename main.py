@@ -19,6 +19,7 @@ import pytz
 # Импорты модулей проекта
 from trend_filter import get_weekly_trend
 from filters import should_trade
+from smart_money import analyze_smc
 from send_to_telegram import send_signal_to_telegram as send_signal
 
 # -----------------------------
@@ -547,6 +548,26 @@ def analyze_market_and_pick(universe=None):
     sample = universe[:MAX_CANDIDATES * 6]
 
     for symbol in sample:
+        # --- 🔹 Smart Money анализ (новый блок) ---
+        try:
+            df = load_ohlcv(symbol)  # Загружаем свечные данные (OHLCV)
+            signal = analyze_smc(df)  # Применяем стратегию Smart Money
+
+            if signal == "buy":
+                send_signal_to_telegram({
+                    "symbol": symbol,
+                    "message": f"🟢 {symbol} — BUY по Smart Money сигналу"
+                })
+                print(f"✅ Smart Money BUY сигнал для {symbol}")
+            elif signal == "sell":
+                send_signal_to_telegram({
+                    "symbol": symbol,
+                    "message": f"🔴 {symbol} — SELL по Smart Money сигналу"
+                })
+                print(f"✅ Smart Money SELL сигнал для {symbol}")
+
+        except Exception as e:
+            print(f"⚠️ Ошибка Smart Money анализа для {symbol}: {e}")
         f = build_advanced_features(symbol)
         if not f:
             continue
