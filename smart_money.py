@@ -4,53 +4,43 @@ smart_money.py
 Минимальный Smart Money Concept (SMC) анализ для FinAI
 """
 
-import pandas as pd
-
-def analyze_smc(df: pd.DataFrame):
+# -----------------------------
+# Загрузка свечей OHLCV с Bybit
+# -----------------------------
+def load_ohlcv(symbol: str, interval="1h", limit=500):
     """
-    Анализирует последние свечи по базовым правилам Smart Money Concept.
-    Возвращает сигнал: 'buy', 'sell' или None.
+    Загружает свечи OHLCV для Smart Money анализа.
     """
+    url = "https://api.bybit.com/v5/market/kline"
+    params = {
+        "category": "linear",
+        "symbol": symbol,
+        "interval": interval,
+        "limit": limit
+    }
 
-    # Проверка на наличие данных
-    if df is None or len(df) < 20:
-        return None
+    try:
+        response = requests.get(url, params=params, timeout=10)
+        response.raise_for_status()
+        data = response.json()
 
-    # Убедимся, что есть нужные колонки
-    if not all(col in df.columns for col in ['open', 'high', 'low', 'close']):
-        return None
+        if data.get("retCode") != 0:
+            print(f"Ошибка получения свечей для {symbol}: {data.get('retMsg')}")
+            return None
 
-    # Берём последние 20 свечей
-    data = df.tail(20).reset_index(drop=True)
+        rows = data["result"]["list"]
+        df = pd.DataFrame(rows, columns=[
+            "timestamp", "open", "high", "low", "close", "volume", "turnover"
+        ])
+        df["open"] = df["open"].astype(float)
+        df["high"] = df["high"].astype(float)
+        df["low"] = df["low"].astype(float)
+        df["close"] = df["close"].astype(float)
+        df["volume"] = df["volume"].astype(float)
+        df["timestamp"] = pd.to_datetime(df["timestamp"], unit='ms')
 
-    # Определяем тренд (структура рынка)
-    last_high = data['high'].iloc[-1]
-    prev_high = data['high'].iloc[-5]
-    last_low = data['low'].iloc[-1]
-    prev_low = data['low'].iloc[-5]
+        return df.sort_values("timestamp").reset_index(drop=True)
 
-    if last_high > prev_high and last_low > prev_low:
-        market_structure = "bullish"
-    elif last_high < prev_high and last_low < prev_low:
-        market_structure = "bearish"
-    else:
-        market_structure = "range"
-
-    # Проверка ликвидности (взятие стопов)
-    liquidity_sweep_up = data['high'].iloc[-1] > max(data['high'].iloc[-5:-1])
-    liquidity_sweep_down = data['low'].iloc[-1] < min(data['low'].iloc[-5:-1])
-
-    # Проверка на дисбаланс (Fair Value Gap)
-    fvg_detected = False
-    for i in range(len(data) - 2):
-        if data['low'].iloc[i + 2] > data['high'].iloc[i]:
-            fvg_detected = True
-            break
-
-    # Решение по сигналу
-    if market_structure == "bullish" and liquidity_sweep_down and fvg_detected:
-        return "buy"
-    elif market_structure == "bearish" and liquidity_sweep_up and fvg_detected:
-        return "sell"
-    else:
+    except Exception as e:
+        print(f"❌ Ошибка загрузки OHLCV для {symbol}: {e}")
         return None
