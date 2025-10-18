@@ -25,10 +25,10 @@ from filters import should_trade
 from send_to_telegram import send_signal_to_telegram as send_signal
 
 # Загружаем список USDT-фьючерсов
-with open("bybit_usdt_futures.json", "r") as f:
+    with open("bybit_usdt_futures.json", "r") as f:
     usdt_pairs = json.load(f)
 
-print(f"Загружено {len(usdt_pairs)} пар для анализа")
+        print(f"Загружено {len(usdt_pairs)} пар для анализа")
 
 # --- дальше идет твоя основная логика бота ---
 # например, запуск функций анализа или торговых сигналов
