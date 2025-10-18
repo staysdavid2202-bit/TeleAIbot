@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 FinAI combined main.py
-(объединённый и исправленный вариант)
+(готовый и исправленный вариант)
 """
 import os
 import time
@@ -43,12 +43,21 @@ def fetch_usdt_pairs():
             print("Ответ Bybit не является JSON:", response.text)
             return []
 
+        if not isinstance(res, dict):
+            print("Ответ Bybit не является словарём:", res)
+            return []
+
         # Проверяем retCode
         if res.get("retCode") != 0:
             print("Ошибка API Bybit:", res.get("retMsg"))
             return []
 
-        symbols = [item["symbol"] for item in res.get("result", []) if item.get("status") == "Trading"]
+        result = res.get("result", [])
+        if not isinstance(result, list):
+            print("Result не список:", result)
+            return []
+
+        symbols = [item["symbol"] for item in result if item.get("status") == "Trading"]
 
         # Сохраняем в JSON
         with open("bybit_usdt_futures.json", "w") as f:
@@ -59,8 +68,10 @@ def fetch_usdt_pairs():
     except Exception as e:
         print("Ошибка при получении пар с Bybit:", e)
         return []
-        
+
+# -----------------------------
 # Загружаем список USDT-пар, создаём файл если его нет
+# -----------------------------
 if not os.path.exists("bybit_usdt_futures.json"):
     print("Файл bybit_usdt_futures.json не найден. Получаем с Bybit...")
     usdt_pairs = fetch_usdt_pairs()
@@ -70,15 +81,6 @@ else:
 
 print(f"Загружено {len(usdt_pairs)} пар для анализа")
 
-# Telebot
-try:
-    import telebot
-except Exception as e:
-    print("Ошибка импорта telebot. Установите pyTelegramBotAPI в requirements.")
-    raise
-
-# --- дальше идет твоя основная логика бота ---
-# например, запуск функций анализа или торговых сигналов
 # Telebot
 try:
     import telebot
