@@ -5,6 +5,9 @@ import requests
 from config import TFS, VOLUME_SPIKE_MULT, OB_IMBALANCE_THRESHOLD
 from indicators import ema, rsi  # твои функции для EMA и RSI
 from utils import fetch_klines, detect_order_block, fetch_orderbook, compute_ob_imbalance, fetch_funding_rate, fetch_ticker_info
+from utils.market_data_helpers import fetch_klines
+from utils.orderbook_helpers import detect_order_block, compute_ob_imbalance, fetch_orderbook
+from utils.funding_helpers import fetch_funding_rate, fetch_ticker_info
 
 # ATR
 def atr(df, period=14):
