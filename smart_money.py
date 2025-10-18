@@ -4,6 +4,9 @@ smart_money.py
 Минимальный Smart Money Concept (SMC) анализ для FinAI
 """
 
+import requests
+import pandas as pd
+
 # -----------------------------
 # Загрузка свечей OHLCV с Bybit
 # -----------------------------
@@ -43,4 +46,27 @@ def load_ohlcv(symbol: str, interval="1h", limit=500):
 
     except Exception as e:
         print(f"❌ Ошибка загрузки OHLCV для {symbol}: {e}")
+        return None
+
+
+# -----------------------------
+# Минимальный Smart Money анализ
+# -----------------------------
+def analyze_smc(df):
+    """
+    Минимальный Smart Money анализ.
+    Возвращает:
+      - "buy"  — сигнал на покупку
+      - "sell" — сигнал на продажу
+      - None   — если сигнала нет
+    """
+    if df is None or df.empty or len(df) < 2:
+        return None
+
+    # Простейшая логика: сравниваем закрытие последней свечи с предыдущей
+    if df["close"].iloc[-1] > df["close"].iloc[-2]:
+        return "buy"
+    elif df["close"].iloc[-1] < df["close"].iloc[-2]:
+        return "sell"
+    else:
         return None
