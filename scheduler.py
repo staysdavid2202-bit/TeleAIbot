@@ -1,55 +1,32 @@
 # scheduler.py
 import time
 from datetime import datetime
-from config import SYMBOLS, MOLDOVA_TZ, SEND_INTERVAL_MINUTES
-from analysis import analyze_symbol
+from config import SYMBOLS, MOLDOVA_TZ, SEND_INTERVAL_MINUTES, CHAT_ID, FRIEND_CHAT_ID
+from smart_money import build_advanced_features
 from telegram_bot import send_signal
-from market_data import fetch_klines
-from utils.smart_money import smart_filter
 
 def scheduler_loop():
     print("📅 Планировщик FinAI запущен.")
     last_run = 0
 
     while True:
-        try:
-            now = datetime.now(MOLDOVA_TZ)
-            elapsed = time.time() - last_run
+        now = datetime.now(MOLDOVA_TZ)
+        if (time.time() - last_run) > SEND_INTERVAL_MINUTES * 60:
+            print(f"⏰ [{now.strftime('%H:%M')}] Генерация сигналов...")
 
-            if elapsed >= SEND_INTERVAL_MINUTES * 60:
-                print(f"\n⏰ [{now.strftime('%H:%M:%S')}] Запуск анализа ({len(SYMBOLS)} пар)...")
-                signals_sent = 0
-
-                for sym in SYMBOLS:
-                    try:
-                        res = analyze_symbol(sym)
-                        if not res:
-                            print(f"🔸 {sym}: нет сигнала")
-                            continue
-
-                        df = fetch_klines(sym, interval="60", limit=300)
-                        if smart_filter(res, df):
-                            send_signal(res)
-                            signals_sent += 1
-                            print(f"✅ {sym}: сигнал отправлен ({res['direction']})")
-                        else:
-                            print(f"⚪ {sym}: отфильтрован SmartMoney")
-
-                    except Exception as e:
-                        print(f"⚠️ Ошибка при анализе {sym}: {e}")
-
-                if signals_sent == 0:
-                    print("🔸 Нет валидных сигналов после фильтрации.")
+            for sym in SYMBOLS:
+                # Если SYMBOLS хранит списки, достаём первый элемент
+                if isinstance(sym, list):
+                    sym = sym[0]
+                res = build_advanced_features(sym)
+                if res:
+                    # Пропускаем пары с неопределённым направлением (например EMA20=EMA50)
+                    if res.get('trend_h1') is None:
+                        print(f"⚠️ Пропущена неопределённая пара {sym}")
+                        continue
+                    send_signal(res)
                 else:
-                    print(f"📤 Отправлено {signals_sent} сигналов.")
+                    print(f"⚠️ Нет данных для {sym}")
 
-                last_run = time.time()
-
-            time.sleep(60)
-
-        except KeyboardInterrupt:
-            print("⛔ Планировщик остановлен вручную.")
-            break
-        except Exception as e:
-            print(f"🚨 Ошибка в цикле планировщика: {e}")
-            time.sleep(30)
+            last_run = time.time()
+        time.sleep(60)
