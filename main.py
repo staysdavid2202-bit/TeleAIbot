@@ -738,7 +738,7 @@ def scheduler_loop():
                 FRIEND_CHAT_ID = 5859602362  # <-- Telegram ID друга (можно изменить)
             if picks and len(picks) > 0:
                 print(f"✅ Найдено {len(picks)} сигналов.")
-             else:
+            else:
                  print("⚠️ Нет подходящих сигналов (список пуст).")             
 
             last_sent_hour = hour
