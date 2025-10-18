@@ -17,7 +17,6 @@ import numpy as np
 import pytz
 
 # Импорты модулей проекта
-from btc_filter import fetch_btc_trend
 from trend_filter import get_weekly_trend
 from filters import should_trade
 from send_to_telegram import send_signal_to_telegram as send_signal
