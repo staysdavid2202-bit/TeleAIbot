@@ -13,22 +13,59 @@ import requests
 import json
 import matplotlib.pyplot as plt
 import pandas as pd
-
-# дополнительные импорты
 import numpy as np
 import pytz
 
-# Импорты модулей (в проекте)
+# Импорты модулей проекта
 from btc_filter import fetch_btc_trend
 from trend_filter import get_weekly_trend
 from filters import should_trade
 from send_to_telegram import send_signal_to_telegram as send_signal
 
-# Загружаем список USDT-фьючерсов
-with open("bybit_usdt_futures.py", "r") as f:
-    usdt_pairs = json.load(f)
+# -----------------------------
+# Функция для получения всех USDT-фьючерсов с Bybit
+# -----------------------------
+def fetch_usdt_pairs():
+    url = "https://api.bybit.com/v5/market/instruments-info"
+    params = {"category": "linear", "instType": "contract"}
+    try:
+        res = requests.get(url, params=params).json()
+        symbols = [item["symbol"] for item in res.get("result", []) if item.get("status") == "Trading"]
+        # Сохраняем в JSON
+        with open("bybit_usdt_futures.json", "w") as f:
+            json.dump(symbols, f, indent=4)
+        return symbols
+    except Exception as e:
+        print("Ошибка при получении пар с Bybit:", e)
+        return []
+
+# -----------------------------
+# Загружаем список USDT-пар, создаём файл если его нет
+# -----------------------------
+if not os.path.exists("bybit_usdt_futures.json"):
+    print("Файл bybit_usdt_futures.json не найден. Получаем с Bybit...")
+    usdt_pairs = fetch_usdt_pairs()
+else:
+    with open("bybit_usdt_futures.json", "r") as f:
+        usdt_pairs = json.load(f)
 
 print(f"Загружено {len(usdt_pairs)} пар для анализа")
+
+# -----------------------------
+# Дальше идет твоя основная логика бота
+# -----------------------------
+
+# Telebot
+try:
+    import telebot
+except Exception as e:
+    print("Ошибка импорта telebot. Установите pyTelegramBotAPI в requirements.")
+    raise
+
+# Flask (если используется)
+from flask import Flask, jsonify
+
+# Теперь usdt_pairs можно использовать в любых функциях анализа и отправки сигналов
 
 # Telebot
 try:
