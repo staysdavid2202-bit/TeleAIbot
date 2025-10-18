@@ -618,26 +618,28 @@ def analyze_market_and_pick(universe=None):
         # --- 🔹 Smart Money анализ (новый блок) ---
         try:
             df = load_ohlcv(symbol)  # Загружаем свечные данные (OHLCV)
-                if df is not None:
-                    signal = analyze_smc(df)  # Применяем стратегию Smart Money
+            if df is not None:
+                signal = analyze_smc(df)  # Применяем стратегию Smart Money
 
-                    if signal == "buy":
-                        send_signal({
-                            "symbol": symbol,
-                            "message": f"🟢 {symbol} — BUY по Smart Money сигналу"
-                        })
-                        print(f"✅ Smart Money BUY сигнал для {symbol}")
-                    elif signal == "sell":
-                        send_signal({
-                            "symbol": symbol,
-                            "message": f"🔴 {symbol} — SELL по Smart Money сигналу"
-                        })
-                        print(f"✅ Smart Money SELL сигнал для {symbol}")
-                else:
-                    print(f"⚠️ Нет данных OHLCV для {symbol}, пропускаем Smart Money анализ.")
+                if signal == "buy":
+                    send_signal({
+                        "symbol": symbol,
+                        "message": f"🟢 {symbol} — BUY по Smart Money сигналу"
+                    })
+                    print(f"✅ Smart Money BUY сигнал для {symbol}")
+                elif signal == "sell":
+                    send_signal({
+                        "symbol": symbol,
+                        "message": f"🔴 {symbol} — SELL по Smart Money сигналу"
+                    })
+                    print(f"✅ Smart Money SELL сигнал для {symbol}")
+            else:
+                print(f"⚠️ Нет данных OHLCV для {symbol}, пропускаем Smart Money анализ.")
 
-            except Exception as e:
-                print(f"⚠️ Ошибка Smart Money анализа для {symbol}: {e}")
+        except Exception as e:
+            print(f"⚠️ Ошибка Smart Money анализа для {symbol}: {e}")
+
+        # --- 🔹 Старый блок анализа и фильтрации ---
         f = build_advanced_features(symbol)
         if not f:
             continue
@@ -646,6 +648,9 @@ def analyze_market_and_pick(universe=None):
         if not res:
             continue
 
+        # Здесь можно продолжить остальную обработку сигнала, например фильтры, отправка в Telegram и т.д.
+        # ...
+        
         # --- Проверка глобального тренда (1W) ---
         try:
             global_tr = get_weekly_trend(symbol)
